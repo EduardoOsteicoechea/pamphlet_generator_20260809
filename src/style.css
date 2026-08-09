@@ -275,6 +275,7 @@ main {
     display: flex;
     flex-direction: column;
     overflow: visible;
+    border: solid 1px blue;
 }
 
 /* Page 1: left = cols 7–8 + footer; right = header + cols 1–2 */
@@ -383,17 +384,25 @@ main {
     width: 9mm;
     height: 9mm;
     margin-top: 0.5mm;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
     border: 1px solid #1565c0;
     background: #1976d2;
     color: #fff;
+    font-size: 0;
+    line-height: 0;
+    cursor: pointer;
+    z-index: 6;
+}
+
+.pamphlet-add-item-button::before {
+    content: "+";
     font-size: 6mm;
     font-weight: 700;
     line-height: 1;
-    cursor: pointer;
-    z-index: 6;
+    /* Optical center: + glyphs sit slightly high/left in most UI fonts */
+    transform: translate(0.02em, -0.06em);
 }
 
 .pamphlet-add-item-button:hover {
