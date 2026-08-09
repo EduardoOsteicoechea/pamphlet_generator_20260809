@@ -23,6 +23,8 @@ import {
     savePamphlet,
 } from "./pamphlet_file";
 import {
+    createAddItemButton,
+    createItemElement,
     createItemSpacer,
     getFlatIndex,
     getItemLocation,
@@ -36,6 +38,7 @@ import {
     FOOTER_COLUMN,
     HEADER_COLUMN,
     HEADER_FIELD_KEYS,
+    createStarterItem,
     type HeaderFieldKey,
     type LastEditedElement,
     type PamphletHeader,
@@ -84,7 +87,7 @@ function toggleSidebar(): void {
 
 const usLetterHeightInMillimeters = 215.9;
 const pageMarginMm = 10;
-const pageHeaderHeightMm = 20;
+const pageHeaderHeightMm = 14;
 const pageFooterHeightMm = 15;
 const colGutterNarrowMm = 4;
 /** Page 2 band / full page-1 chrome band: letter − 2×margin */
@@ -148,6 +151,78 @@ function clearError(): void {
 
 function setStatus(message: string, kind: ToastKind = "info"): void {
     showToast(message, kind);
+}
+
+function measureBlockMm(item: HTMLElement, spacer: HTMLElement | null): number {
+    const itemMm = convertPixelsToMillimeters(item.getBoundingClientRect().height);
+    const spacerMm = spacer
+        ? convertPixelsToMillimeters(spacer.getBoundingClientRect().height)
+        : 0;
+    return itemMm + spacerMm;
+}
+
+/** Probe how much vertical space a new starter item (+ spacer) and the + button need. */
+function measureAddControlsMm(host: HTMLElement): { newItemMm: number; buttonMm: number } {
+    const probeItem = createItemElement(createStarterItem());
+    const probeSpacer = createItemSpacer();
+    const probeBtn = createAddItemButton(0);
+    host.appendChild(probeItem);
+    host.appendChild(probeSpacer);
+    host.appendChild(probeBtn);
+    const newItemMm = measureBlockMm(probeItem, probeSpacer);
+    const buttonMm = convertPixelsToMillimeters(probeBtn.getBoundingClientRect().height);
+    probeItem.remove();
+    probeSpacer.remove();
+    probeBtn.remove();
+    return { newItemMm, buttonMm };
+}
+
+function placeColumnAddButton(
+    container: HTMLElement,
+    filledByColumn: Map<number, number>,
+    lastFilledColumn: number,
+): void {
+    const host =
+        container.querySelector<HTMLElement>(`:scope > .pamphlet-column-${lastFilledColumn}`) ??
+        container.querySelector<HTMLElement>(":scope > .dumb-column");
+    if (!host) return;
+
+    const { newItemMm, buttonMm } = measureAddControlsMm(host);
+    let colIdx = lastFilledColumn;
+    let filled = filledByColumn.get(colIdx) ?? 0;
+
+    while (colIdx <= 8) {
+        const max = maxHeightForColumn(colIdx);
+        // Only place + if a new item AND the button both fit
+        if (filled + newItemMm + buttonMm <= max) {
+            const col = container.querySelector<HTMLElement>(`:scope > .pamphlet-column-${colIdx}`);
+            if (col) {
+                col.querySelector(":scope > .pamphlet-add-item-button")?.remove();
+                col.appendChild(createAddItemButton(colIdx));
+            }
+            return;
+        }
+        colIdx++;
+        filled = 0;
+    }
+}
+
+function placeFooterAddButton(footer: HTMLElement): void {
+    footer.querySelector(":scope > .pamphlet-add-item-button")?.remove();
+
+    let filledMm = 0;
+    const items = footer.querySelectorAll<HTMLElement>(":scope > .pamphlet-item");
+    items.forEach((item) => {
+        const spacer = item.nextElementSibling?.classList.contains("pamphlet-item-spacer")
+            ? (item.nextElementSibling as HTMLElement)
+            : null;
+        filledMm += measureBlockMm(item, spacer);
+    });
+
+    const { newItemMm, buttonMm } = measureAddControlsMm(footer);
+    if (filledMm + newItemMm + buttonMm <= pageFooterHeightMm) {
+        footer.appendChild(createAddItemButton(FOOTER_COLUMN));
+    }
 }
 
 function reflowAndReport(container: HTMLElement) {
@@ -288,8 +363,20 @@ function reflowAndReport(container: HTMLElement) {
         createAndAppendColumn();
     }
 
+    const filledByColumn = new Map<number, number>();
+    for (const col of report.columns) {
+        filledByColumn.set(col.columnIndex, col.filledHeightMm);
+    }
+    const lastFilledColumn =
+        report.columns.filter((c) => c.itemCount > 0).at(-1)?.columnIndex ?? 1;
+    placeColumnAddButton(container, filledByColumn, lastFilledColumn);
+
     if (currentDoc) {
         renderPageChrome(container, currentDoc);
+        const footer = container.querySelector<HTMLElement>(":scope > .pamphlet-page-footer");
+        if (footer) {
+            placeFooterAddButton(footer);
+        }
     }
 
     console.log("--- Auto-Reflow Layout Report ---");
@@ -350,12 +437,11 @@ function clickInner(target: HTMLElement | undefined): void {
 
 function activateEditAt(data: PamphletStructure, loc: LastEditedElement): void {
     if (loc.column === HEADER_COLUMN) {
-        const items = Array.from(
-            main.querySelectorAll<HTMLElement>(
-                ":scope > .pamphlet-page-header .pamphlet-item[data-header-field]",
-            ),
+        const field = HEADER_FIELD_KEYS[Math.min(Math.max(loc.index, 0), HEADER_FIELD_KEYS.length - 1)];
+        const item = main.querySelector<HTMLElement>(
+            `:scope > .pamphlet-page-header .pamphlet-item[data-header-field="${field}"]`,
         );
-        clickInner(items[Math.min(Math.max(loc.index, 0), items.length - 1)]);
+        if (item) clickInner(item);
         return;
     }
 
@@ -443,6 +529,21 @@ function syncContentIntoDoc(
     if (!resolved) return null;
     updateItemContent(data, resolved, content);
     return resolved;
+}
+
+async function handleAddItemButton(column: number): Promise<void> {
+    if (!currentDoc || !hasOpenFile()) {
+        setError("No pamphlet file is open.");
+        return;
+    }
+    if (column !== FOOTER_COLUMN && (column < 1 || column > 8)) return;
+
+    const base = serializePamphlet(main, currentDoc.last_edited_element);
+    const items = getRegionItems(base, column);
+    items.push(createStarterItem());
+    base.last_edited_element = { column, index: items.length - 1 };
+    pushUndoSnapshot();
+    await commitDocument(base, true);
 }
 
 async function handleTrayAction(detail: PamphletTrayAction): Promise<void> {
@@ -572,6 +673,16 @@ function loadPamphlet(data: PamphletStructure): void {
     clearError();
     updatePrintAvailability();
 }
+
+main.addEventListener("click", (event: MouseEvent) => {
+    const target = event.target as HTMLElement | null;
+    const btn = target?.closest<HTMLButtonElement>(".pamphlet-add-item-button");
+    if (!btn || !main.contains(btn)) return;
+    const column = Number(btn.dataset.addColumn);
+    if (!Number.isFinite(column)) return;
+    event.preventDefault();
+    void handleAddItemButton(column);
+});
 
 main.addEventListener("pamphlet-tray-action", (event: Event) => {
     const custom = event as CustomEvent<PamphletTrayAction>;

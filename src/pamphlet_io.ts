@@ -28,6 +28,14 @@ const HEADER_FIELD_CLASSES: Record<HeaderFieldKey, string> = {
     date: "pamphlet-header-date",
 };
 
+/** Visible meta-bar fields under the title (subtitle stays in DOM but hidden). */
+const HEADER_META_FIELDS: { field: HeaderFieldKey; label: string }[] = [
+    { field: "series", label: "Serie" },
+    { field: "series_chapter", label: "Capítulo" },
+    { field: "author", label: "Autor" },
+    { field: "date", label: "Fecha" },
+];
+
 export function parseStyleIndexes(raw: string | null): StyleIndexes {
     if (!raw) return structuredClone(DEFAULT_STYLE_INDEXES);
     try {
@@ -112,6 +120,32 @@ function createHeaderFieldElement(field: HeaderFieldKey, value: string): HTMLEle
     return container;
 }
 
+function createLabeledHeaderMetaField(
+    field: HeaderFieldKey,
+    label: string,
+    value: string,
+): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "pamphlet-header-meta-field";
+
+    const labelEl = document.createElement("span");
+    labelEl.className = "pamphlet-header-meta-label";
+    labelEl.textContent = `${label}:`;
+    wrap.appendChild(labelEl);
+    wrap.appendChild(createHeaderFieldElement(field, value));
+    return wrap;
+}
+
+export function createAddItemButton(column: number): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pamphlet-add-item-button";
+    btn.textContent = "+";
+    btn.setAttribute("aria-label", "Añadir elemento");
+    btn.dataset.addColumn = String(column);
+    return btn;
+}
+
 export function renderPageChrome(main: HTMLElement, data: PamphletStructure): void {
     main.querySelector(":scope > .pamphlet-page-header")?.remove();
     main.querySelector(":scope > .pamphlet-page-footer")?.remove();
@@ -122,11 +156,17 @@ export function renderPageChrome(main: HTMLElement, data: PamphletStructure): vo
 
     const metaBar = document.createElement("div");
     metaBar.className = "pamphlet-header-meta-bar";
-    for (const field of HEADER_FIELD_KEYS) {
-        if (field === "title") continue;
-        metaBar.appendChild(createHeaderFieldElement(field, data.header[field] ?? ""));
+    for (const { field, label } of HEADER_META_FIELDS) {
+        metaBar.appendChild(
+            createLabeledHeaderMetaField(field, label, data.header[field] ?? ""),
+        );
     }
     headerEl.appendChild(metaBar);
+
+    // Keep subtitle in DOM for persistence / last_edited indexes, but hide it
+    const subtitle = createHeaderFieldElement("subtitle", data.header.subtitle ?? "");
+    subtitle.classList.add("pamphlet-header-field-hidden");
+    headerEl.appendChild(subtitle);
 
     const footerEl = document.createElement("footer");
     footerEl.className = "pamphlet-page-footer dumb-column pamphlet-footer-column";
@@ -204,10 +244,9 @@ export function serializeFooterFromDom(main: HTMLElement): PamphletItem[] {
 export function getItemLocation(container: HTMLElement): LastEditedElement | null {
     const header = container.closest<HTMLElement>(".pamphlet-page-header");
     if (header) {
-        const items = Array.from(
-            header.querySelectorAll<HTMLElement>(".pamphlet-item[data-header-field]"),
-        );
-        const index = items.indexOf(container);
+        const field = container.getAttribute("data-header-field") as HeaderFieldKey | null;
+        if (!field) return null;
+        const index = HEADER_FIELD_KEYS.indexOf(field);
         if (index < 0) return null;
         return { column: HEADER_COLUMN, index };
     }

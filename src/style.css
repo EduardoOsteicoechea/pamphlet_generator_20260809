@@ -18,8 +18,8 @@
 
 .menu-toggle {
   position: absolute;
-  top: 5px;
-  right: 15px;
+  top: 10px;
+  right: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -27,10 +27,10 @@
   height: 40px;
   flex-shrink: 0;
   background: #222;
-  border-radius: 6px;
+  border-radius: 0px;
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  /*box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);*/
 }
 
 .menu-toggle[aria-expanded="true"] {
@@ -209,10 +209,10 @@
   --page-margin: 10mm;
   --col-gutter-narrow: 4mm;
   --col-gutter-wide: 10mm;
-  --page-header-height: 20mm;
+  --page-header-height: 14mm;
   --page-footer-height: 15mm;
-  /* Page 1 body: 215.9 − 10 − 20 − 4 − 4 − 15 − 10 = 152.9mm */
-  --page1-body-height: 152.9mm;
+  /* Page 1 body: 215.9 − 10 − 14 − 4 − 4 − 15 − 10 = 158.9mm */
+  --page1-body-height: 158.9mm;
   /* Page 2 content band: 215.9 − 10 − 10 = 195.9mm */
   --column-content-height: 195.9mm;
   /* Content column width: (279.4 − 10−4−10−4−10) / 4 = 60.35mm */
@@ -283,8 +283,9 @@ main {
     grid-row: 2;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 1mm;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 0.6mm;
     overflow: visible;
     min-width: 0;
     min-height: 0;
@@ -297,7 +298,7 @@ main {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    gap: 1mm;
+    gap: 0;
     overflow: visible;
     min-width: 0;
     min-height: 0;
@@ -305,7 +306,7 @@ main {
     z-index: 5;
 }
 
-.pamphlet-page-header > .pamphlet-item {
+.pamphlet-page-header > .pamphlet-header-title {
     width: 100%;
     flex: 0 0 auto;
 }
@@ -314,16 +315,49 @@ main {
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
+    justify-content: flex-start;
     align-items: baseline;
-    gap: 2mm;
+    gap: 2.5mm;
     width: 100%;
     min-width: 0;
+    flex: 0 0 auto;
+    overflow: hidden;
 }
 
-.pamphlet-header-meta-bar > .pamphlet-item {
-    flex: 1 1 0;
-    min-width: 0;
+.pamphlet-header-meta-field {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    gap: 0.6mm;
+    flex: 0 0 auto;
+    width: max-content;
+    white-space: nowrap;
+}
+
+.pamphlet-header-meta-label {
+    flex: 0 0 auto;
+    font-size: 2.5mm;
+    line-height: 1.2;
+    opacity: 0.75;
+    white-space: nowrap;
+}
+
+.pamphlet-header-meta-field > .pamphlet-item {
+    flex: 0 0 auto;
     width: auto;
+}
+
+.pamphlet-header-field-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .pamphlet-page-footer > .pamphlet-item {
@@ -343,6 +377,29 @@ main {
     user-select: none;
 }
 
+.pamphlet-add-item-button {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    width: 6mm;
+    height: 6mm;
+    margin-top: 0.5mm;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #2e7d32;
+    background: #fff;
+    color: #c62828;
+    font-size: 4mm;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 6;
+}
+
+.pamphlet-add-item-button:hover {
+    background: #f3faf3;
+}
+
 .pamphlet-header-item {
     max-width: 100%;
     overflow: visible;
@@ -352,22 +409,13 @@ main {
 .pamphlet-header-title p {
     font-size: 5mm;
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.1;
 }
 
-.pamphlet-header-subtitle p {
-    font-size: 2.4mm;
-    font-weight: 500;
+.pamphlet-header-meta-bar .pamphlet-header-item p {
+    font-size: 2.5mm;
     line-height: 1.2;
-}
-
-.pamphlet-header-author p,
-.pamphlet-header-series p,
-.pamphlet-header-series-chapter p,
-.pamphlet-header-date p {
-    font-size: 2.2mm;
-    line-height: 1.2;
-    opacity: 0.85;
+    opacity: 0.9;
 }
 
 .pamphlet-page-footer .pamphlet-item {
@@ -509,7 +557,8 @@ p{
   .app-sidebar,
   .sidebar-backdrop,
   .menu-toggle,
-  .toastify {
+  .toastify,
+  .pamphlet-add-item-button {
     display: none !important;
   }
 
