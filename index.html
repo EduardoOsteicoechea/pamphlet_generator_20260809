@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pamplet_generator</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=remove" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=add_2" />
+  
+</head>
+
+<body>
+  <header id="file-toolbar">
+    <div class="file-toolbar-actions">
+      <button type="button" id="btn-open">Open JSON</button>
+      <input id="input-title" type="text" placeholder="Título" />
+      <input id="input-series" type="text" placeholder="Nombre de serie" />
+      <input id="input-chapter" type="text" placeholder="Capítulo" />
+      <button type="button" id="btn-create">Create new JSON</button>
+    </div>
+    <p id="file-status"></p>
+    <p id="file-error" role="alert"></p>
+    <button type="button" id="btn-print">Imprimir</button>
+  </header>
+  <main></main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>
