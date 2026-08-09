@@ -1,7 +1,9 @@
+/* Portable pamphlet generator — styles scoped to .pamphlet-app for Astro layout embed */
+
 /* ./style.css */
 
 #file-toolbar {
-  /* Fixed to viewport; inverse-scaled so browser zoom does not change chrome size */
+  /* Fixed within the browser viewport on the dedicated Astro route */
   position: fixed;
   top: 0;
   right: 0;
@@ -238,7 +240,7 @@
   border-color: rgba(255, 200, 210, 0.2);
 }
 
-:root{
+.pamphlet-app {
   /* US Letter landscape: 279.4mm × 215.9mm; two stacked sheets */
   --letter-landscape-width: 279.4mm;
   --letter-landscape-height: 215.9mm;
@@ -268,7 +270,8 @@
   --b1: solid 1px rgb(231, 231, 231);
 }
 
-*{
+.pamphlet-app,
+.pamphlet-app * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -277,11 +280,14 @@
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
-body{
-  margin: 0;
+.pamphlet-app {
+  width: 100%;
+  min-height: 100%;
+  isolation: isolate;
 }
 
-main {
+
+.pamphlet-app main.pamphlet-sheet {
     /* Two US Letter landscape sheets stacked (no extra padding/gap — margins are grid tracks) */
     width: var(--letter-landscape-width);
     height: var(--sheet-stack-height);
@@ -680,7 +686,7 @@ p {
   Mobile preview: stack columns with exact mm sizes, centered, scaled to screen width.
   Print always uses the traditional letter grid (rules in @media print).
 */
-main.pamphlet-view--mobile {
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -693,51 +699,50 @@ main.pamphlet-view--mobile {
   transform-origin: top center;
 }
 
-main.pamphlet-view--mobile > .pamphlet-page-header,
-main.pamphlet-view--mobile > .pamphlet-page-footer,
-main.pamphlet-view--mobile > .dumb-column {
-  /* Keep grid placement rules intact so @media print can restore letter layout */
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-page-header,
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-page-footer,
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .dumb-column {
   flex: 0 0 auto;
   border: var(--b1);
 }
 
-main.pamphlet-view--mobile > .pamphlet-page-header {
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-page-header {
   order: 1;
   width: var(--page1-band-width);
   height: var(--page-header-height);
 }
 
-main.pamphlet-view--mobile > .pamphlet-column-1 { order: 2; }
-main.pamphlet-view--mobile > .pamphlet-column-2 { order: 3; }
-main.pamphlet-view--mobile > .pamphlet-column-3 { order: 4; }
-main.pamphlet-view--mobile > .pamphlet-column-4 { order: 5; }
-main.pamphlet-view--mobile > .pamphlet-column-5 { order: 6; }
-main.pamphlet-view--mobile > .pamphlet-column-6 { order: 7; }
-main.pamphlet-view--mobile > .pamphlet-column-7 { order: 8; }
-main.pamphlet-view--mobile > .pamphlet-column-8 { order: 9; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-1 { order: 2; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-2 { order: 3; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-3 { order: 4; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-4 { order: 5; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-5 { order: 6; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-6 { order: 7; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-7 { order: 8; }
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-8 { order: 9; }
 
-main.pamphlet-view--mobile > .pamphlet-page-footer {
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-page-footer {
   order: 10;
   width: var(--page1-band-width);
   height: var(--page-footer-height);
 }
 
-main.pamphlet-view--mobile > .pamphlet-column-1,
-main.pamphlet-view--mobile > .pamphlet-column-2 {
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-1,
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-2 {
   width: var(--column-content-width);
   height: var(--page1-right-col-height);
 }
 
-main.pamphlet-view--mobile > .pamphlet-column-7,
-main.pamphlet-view--mobile > .pamphlet-column-8 {
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-7,
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-8 {
   width: var(--column-content-width);
   height: var(--page1-left-col-height);
 }
 
-main.pamphlet-view--mobile > .pamphlet-column-3,
-main.pamphlet-view--mobile > .pamphlet-column-4,
-main.pamphlet-view--mobile > .pamphlet-column-5,
-main.pamphlet-view--mobile > .pamphlet-column-6 {
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-3,
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-4,
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-5,
+.pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-column-6 {
   width: var(--column-content-width);
   height: var(--column-content-height);
 }
@@ -748,30 +753,18 @@ main.pamphlet-view--mobile > .pamphlet-column-6 {
 }
 
 @media print {
-  html,
-  body {
-    margin: 0 !important;
-    padding: 0 !important;
-    width: var(--letter-landscape-width);
-    background: #fff;
-  }
-
-  #file-toolbar,
-  .app-sidebar,
-  .sidebar-backdrop,
-  .menu-toggle,
+  .pamphlet-app #file-toolbar,
+  .pamphlet-app .app-sidebar,
+  .pamphlet-app .sidebar-backdrop,
+  .pamphlet-app .menu-toggle,
   .toastify,
-  .pamphlet-add-item-button {
+  .pamphlet-app .pamphlet-add-item-button,
+  .pamphlet-app .element_edit_tray {
     display: none !important;
   }
 
-  .element_edit_tray {
-    display: none !important;
-  }
-
-  /* Always letter grid for print, even if preview was mobile */
-  main,
-  main.pamphlet-view--mobile {
+  .pamphlet-app main.pamphlet-sheet,
+  .pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile {
     display: grid !important;
     flex-direction: unset !important;
     align-items: unset !important;
@@ -783,16 +776,16 @@ main.pamphlet-view--mobile > .pamphlet-column-6 {
     border: none !important;
   }
 
-  main.pamphlet-view--mobile > .pamphlet-page-header,
-  main.pamphlet-view--mobile > .pamphlet-page-footer,
-  main.pamphlet-view--mobile > .dumb-column {
+  .pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-page-header,
+  .pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .pamphlet-page-footer,
+  .pamphlet-app main.pamphlet-sheet.pamphlet-view--mobile > .dumb-column {
     width: auto !important;
     height: auto !important;
     order: unset !important;
     border: none !important;
   }
 
-  .dumb-column {
+  .pamphlet-app .dumb-column {
     border: none;
   }
 }

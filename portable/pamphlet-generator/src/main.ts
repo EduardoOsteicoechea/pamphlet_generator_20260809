@@ -1,6 +1,8 @@
 import "./style.css";
 import Toastify from "toastify-js";
 import "toastify-js/src/toastify.css";
+import { MENU_ICON } from "./icons";
+import { renderShell } from "./shell";
 import type { PamphletTrayAction } from "./create_element";
 import {
     appendItem,
@@ -54,30 +56,51 @@ type PendingInsert =
     | { mode: "end"; column: number }
     | { mode: "relative"; column: number; index: number; where: "above" | "below" };
 
-function requireElement<T extends HTMLElement>(selector: string): T {
-    const el = document.querySelector<T>(selector);
-    if (!el) throw new Error(`Missing element: ${selector}`);
-    return el;
+export interface PamphletMountHandle {
+    destroy(): void;
 }
 
-const main = requireElement<HTMLElement>("main");
-const openBtn = requireElement<HTMLButtonElement>("#btn-open");
-const createBtn = requireElement<HTMLButtonElement>("#btn-create");
-const printBtn = requireElement<HTMLButtonElement>("#btn-print");
-const viewDesktopBtn = requireElement<HTMLButtonElement>("#btn-view-desktop");
-const viewMobileBtn = requireElement<HTMLButtonElement>("#btn-view-mobile");
-const menuBtn = requireElement<HTMLButtonElement>("#btn-menu");
-const sidebar = requireElement<HTMLElement>("#app-sidebar");
-const sidebarBackdrop = requireElement<HTMLElement>("#sidebar-backdrop");
-const createModal = requireElement<HTMLDialogElement>("#create-modal");
-const createForm = requireElement<HTMLFormElement>("#create-form");
-const modalCancelBtn = requireElement<HTMLButtonElement>("#modal-cancel");
-const modalTitle = requireElement<HTMLInputElement>("#modal-title");
-const modalSeries = requireElement<HTMLInputElement>("#modal-series");
-const modalChapter = requireElement<HTMLInputElement>("#modal-chapter");
-const modalAuthor = requireElement<HTMLInputElement>("#modal-author");
-const itemTypeModal = requireElement<HTMLDialogElement>("#item-type-modal");
-const itemTypeCancelBtn = requireElement<HTMLButtonElement>("#item-type-cancel");
+export function mountPamphletGenerator(host: HTMLElement): PamphletMountHandle {
+    const appRoot = document.createElement("div");
+    appRoot.className = "pamphlet-app";
+    appRoot.innerHTML = renderShell(MENU_ICON);
+    host.replaceChildren(appRoot);
+
+    function requireElement<T extends HTMLElement>(selector: string): T {
+        const el = appRoot.querySelector<T>(selector);
+        if (!el) throw new Error(`Missing element: ${selector}`);
+        return el;
+    }
+
+    const main = requireElement<HTMLElement>("main.pamphlet-sheet");
+    const openBtn = requireElement<HTMLButtonElement>("#btn-open");
+    const createBtn = requireElement<HTMLButtonElement>("#btn-create");
+    const printBtn = requireElement<HTMLButtonElement>("#btn-print");
+    const viewDesktopBtn = requireElement<HTMLButtonElement>("#btn-view-desktop");
+    const viewMobileBtn = requireElement<HTMLButtonElement>("#btn-view-mobile");
+    const menuBtn = requireElement<HTMLButtonElement>("#btn-menu");
+    const sidebar = requireElement<HTMLElement>("#app-sidebar");
+    const sidebarBackdrop = requireElement<HTMLElement>("#sidebar-backdrop");
+    const createModal = requireElement<HTMLDialogElement>("#create-modal");
+    const createForm = requireElement<HTMLFormElement>("#create-form");
+    const modalCancelBtn = requireElement<HTMLButtonElement>("#modal-cancel");
+    const modalTitle = requireElement<HTMLInputElement>("#modal-title");
+    const modalSeries = requireElement<HTMLInputElement>("#modal-series");
+    const modalChapter = requireElement<HTMLInputElement>("#modal-chapter");
+    const modalAuthor = requireElement<HTMLInputElement>("#modal-author");
+    const itemTypeModal = requireElement<HTMLDialogElement>("#item-type-modal");
+    const itemTypeCancelBtn = requireElement<HTMLButtonElement>("#item-type-cancel");
+
+    const disposers: Array<() => void> = [];
+    function on(
+        target: EventTarget,
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+    ): void {
+        target.addEventListener(type, listener, options);
+        disposers.push(() => target.removeEventListener(type, listener, options));
+    }
 
 function updatePrintAvailability(): void {
     printBtn.disabled = !hasOpenFile() || !currentDoc;
@@ -138,9 +161,8 @@ function syncFixedChromeScale(): void {
     const dpr = window.devicePixelRatio || 1;
     const zoom = dpr / uiChromeBaselineDpr;
     const inv = zoom > 0 ? 1 / zoom : 1;
-    const root = document.documentElement;
-    root.style.setProperty("--ui-zoom", String(zoom));
-    root.style.setProperty("--ui-inv-zoom", String(inv));
+    appRoot.style.setProperty("--ui-zoom", String(zoom));
+    appRoot.style.setProperty("--ui-inv-zoom", String(inv));
 }
 
 /** Scale stacked mobile preview so the band fits the screen width. */
@@ -160,7 +182,6 @@ function updateMobileViewScale(): void {
         const available = Math.max(120, window.innerWidth - 24);
         const scale = unscaledWidth > 0 ? Math.min(1, available / unscaledWidth) : 1;
         main.style.setProperty("--mobile-view-scale", String(scale));
-        // Transform does not shrink layout box — pull following space up
         main.style.marginBottom = `${unscaledHeight * (scale - 1)}px`;
     });
 }
@@ -785,7 +806,7 @@ function loadPamphlet(data: PamphletStructure): void {
     updatePrintAvailability();
 }
 
-main.addEventListener("click", (event: MouseEvent) => {
+on(main, "click", (event: MouseEvent) => {
     const target = event.target as HTMLElement | null;
     const btn = target?.closest<HTMLButtonElement>(".pamphlet-add-item-button");
     if (!btn || !main.contains(btn)) return;
@@ -795,20 +816,20 @@ main.addEventListener("click", (event: MouseEvent) => {
     void handleAddItemButton(column);
 });
 
-main.addEventListener("pamphlet-tray-action", (event: Event) => {
+on(main, "pamphlet-tray-action", (event: Event) => {
     const custom = event as CustomEvent<PamphletTrayAction>;
     void handleTrayAction(custom.detail);
 });
 
-menuBtn.addEventListener("click", () => {
+on(menuBtn, "click", () => {
     toggleSidebar();
 });
 
-sidebarBackdrop.addEventListener("click", () => {
+on(sidebarBackdrop, "click", () => {
     closeSidebar();
 });
 
-openBtn.addEventListener("click", async () => {
+on(openBtn, "click", async () => {
     closeSidebar();
     clearError();
     try {
@@ -832,16 +853,16 @@ function closeCreateModal(): void {
     if (createModal.open) createModal.close();
 }
 
-createBtn.addEventListener("click", () => {
+on(createBtn, "click", () => {
     closeSidebar();
     openCreateModal();
 });
 
-modalCancelBtn.addEventListener("click", () => {
+on(modalCancelBtn, "click", () => {
     closeCreateModal();
 });
 
-createForm.addEventListener("submit", async (event) => {
+on(createForm, "submit", async (event) => {
     event.preventDefault();
     clearError();
 
@@ -873,33 +894,33 @@ createForm.addEventListener("submit", async (event) => {
 });
 
 itemTypeModal.querySelectorAll<HTMLButtonElement>("[data-item-type]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    on(btn, "click", () => {
         const type = btn.dataset.itemType as PamphletItemType | undefined;
         if (type !== "paragraph" && type !== "heading_1" && type !== "image") return;
         void confirmItemType(type);
     });
 });
 
-itemTypeCancelBtn.addEventListener("click", () => {
+on(itemTypeCancelBtn, "click", () => {
     closeItemTypeModal();
 });
 
-itemTypeModal.addEventListener("cancel", () => {
+on(itemTypeModal, "cancel", () => {
     pendingInsert = null;
 });
 
-printBtn.addEventListener("click", () => {
+on(printBtn, "click", () => {
     if (printBtn.disabled) return;
     closeSidebar();
     window.print();
 });
 
-viewDesktopBtn.addEventListener("click", () => {
+on(viewDesktopBtn, "click", () => {
     setViewMode("desktop");
     closeSidebar();
 });
 
-viewMobileBtn.addEventListener("click", () => {
+on(viewMobileBtn, "click", () => {
     setViewMode("mobile");
     closeSidebar();
 });
@@ -907,20 +928,31 @@ viewMobileBtn.addEventListener("click", () => {
 updatePrintAvailability();
 setViewMode("desktop");
 syncFixedChromeScale();
-window.addEventListener("resize", () => {
+on(window, "resize", () => {
     syncFixedChromeScale();
     updateMobileViewScale();
 });
-window.visualViewport?.addEventListener("resize", () => {
-    syncFixedChromeScale();
-    updateMobileViewScale();
-});
-window.visualViewport?.addEventListener("scroll", syncFixedChromeScale);
+if (window.visualViewport) {
+    on(window.visualViewport, "resize", () => {
+        syncFixedChromeScale();
+        updateMobileViewScale();
+    });
+    on(window.visualViewport, "scroll", syncFixedChromeScale);
+}
 
 if (!isFileSystemAccessSupported()) {
-    setError("File System Access API is not supported. Use Chrome or Edge.");
-    openBtn.disabled = true;
-    createBtn.disabled = true;
-} else {
-    setStatus("No file open — open an existing .epam or create a new one.");
+        setError("File System Access API is not supported. Use Chrome or Edge.");
+        openBtn.disabled = true;
+        createBtn.disabled = true;
+    } else {
+        setStatus("No file open — open an existing .epam or create a new one.");
+    }
+
+    return {
+        destroy() {
+            for (const dispose of disposers) dispose();
+            disposers.length = 0;
+            host.replaceChildren();
+        },
+    };
 }
