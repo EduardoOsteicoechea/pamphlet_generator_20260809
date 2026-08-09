@@ -1,68 +1,198 @@
 /* ./style.css */
 
 #file-toolbar {
+  position: absolute;
+  top: 0px;
+  right: 12px;
+  z-index: 30;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 15px;
-  margin-bottom: 5px;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
 }
 
-.file-toolbar-actions {
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: #222;
+  border-radius: 6px;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.menu-toggle[aria-expanded="true"] {
+  background: #444;
+}
+
+.menu-toggle-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+  pointer-events: none;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 40;
+}
+
+.sidebar-backdrop[hidden] {
+  display: none !important;
+}
+
+.app-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(280px, 85vw);
+  height: 100vh;
+  background: #1e1e1e;
+  color: #f2f2f2;
+  z-index: 50;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.25);
+  padding: 72px 16px 24px;
+}
+
+.app-sidebar.is-open {
+  transform: translateX(0);
+}
+
+.app-sidebar-nav {
   display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.file-toolbar-actions label {
+.app-sidebar-nav button {
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  background: #333;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.app-sidebar-nav button:hover:not(:disabled) {
+  background: #454545;
+}
+
+.app-sidebar-nav button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.create-modal {
+  border: 1px solid #c8c8c8;
+  border-radius: 8px;
+  padding: 0;
+  width: min(420px, calc(100vw - 32px));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.create-modal::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.create-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.create-modal-form h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.create-modal-hint {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.create-modal-form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
 }
 
-.file-toolbar-actions input {
-  min-width: 140px;
-  padding: 6px 8px;
+.create-modal-form input {
+  padding: 8px 10px;
   border: 1px solid #aaa;
   background: #fff;
+  font-size: 14px;
 }
 
-.file-toolbar-actions button {
-  padding: 8px 12px;
-  background: #333;
-  color: #fff;
-  cursor: pointer;
-}
-
-.file-toolbar-actions button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-#file-status {
-  font-size: 13px;
-  color: #333;
-  margin-left: auto;;
-  height: 100%;
+.create-modal-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
 
-#file-error {
-  font-size: 13px;
-  color: #b00020;
-  min-height: 1em;
-}
-
-#btn-print {
+.create-modal-actions button {
   padding: 8px 12px;
+  cursor: pointer;
+}
+
+#modal-cancel {
+  background: #e8e8e8;
+  color: #222;
+}
+
+#modal-confirm {
   background: #333;
   color: #fff;
-  cursor: pointer;
-  flex-shrink: 0;
+}
+
+/* Toastify — top-left status toasts */
+.app-toast.toastify {
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.16),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid transparent;
+}
+
+.app-toast--info.toastify {
+  background: linear-gradient(135deg, rgba(28, 28, 30, 0.92), rgba(45, 45, 48, 0.9));
+  color: #f5f5f7;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.app-toast--success.toastify {
+  background: linear-gradient(135deg, rgba(16, 90, 54, 0.95), rgba(22, 120, 70, 0.9));
+  color: #f3fff7;
+  border-color: rgba(180, 255, 210, 0.18);
+}
+
+.app-toast--error.toastify {
+  background: linear-gradient(135deg, rgba(140, 20, 40, 0.96), rgba(176, 40, 55, 0.92));
+  color: #fff5f6;
+  border-color: rgba(255, 200, 210, 0.2);
 }
 
 :root{
@@ -73,7 +203,11 @@
   --page-margin: 10mm;
   --col-gutter-narrow: 4mm;
   --col-gutter-wide: 10mm;
-  /* Content band per sheet: 215.9 − 10 − 10 = 195.9mm */
+  --page-header-height: 20mm;
+  --page-footer-height: 15mm;
+  /* Page 1 body: 215.9 − 10 − 20 − 4 − 4 − 15 − 10 = 152.9mm */
+  --page1-body-height: 152.9mm;
+  /* Page 2 content band: 215.9 − 10 − 10 = 195.9mm */
   --column-content-height: 195.9mm;
   /* Content column width: (279.4 − 10−4−10−4−10) / 4 = 60.35mm */
   --column-content-width: 60.35mm;
@@ -90,6 +224,7 @@
 }
 
 body{
+  margin: 0;
 }
 
 main {
@@ -110,14 +245,18 @@ main {
         var(--page-margin);
     grid-template-rows:
         var(--page-margin)
-        var(--column-content-height)
+        var(--page-header-height)
+        var(--col-gutter-narrow)
+        var(--page1-body-height)
+        var(--col-gutter-narrow)
+        var(--page-footer-height)
         var(--page-margin)
         var(--page-margin)
         var(--column-content-height)
         var(--page-margin);
     padding: 0;
     border: var(--b1);
-    margin: 0 auto;
+    margin: 10px auto 10px auto;
 }
 
 .dumb-column {
@@ -127,21 +266,103 @@ main {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     border: var(--b1);
 }
 
-/* Sheet 1 (top landscape page) */
-.pamphlet-column-1 { grid-column: 2; grid-row: 2; }
-.pamphlet-column-2 { grid-column: 4; grid-row: 2; }
-.pamphlet-column-3 { grid-column: 6; grid-row: 2; }
-.pamphlet-column-4 { grid-column: 8; grid-row: 2; }
+/* Page 1: left = cols 7–8 + footer; right = header + cols 1–2 */
+.pamphlet-page-header {
+    grid-column: 6 / 9;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1mm;
+    overflow: visible;
+    min-width: 0;
+    min-height: 0;
+    z-index: 5;
+}
 
-/* Sheet 2 (bottom landscape page) */
-.pamphlet-column-5 { grid-column: 2; grid-row: 5; }
-.pamphlet-column-6 { grid-column: 4; grid-row: 5; }
-.pamphlet-column-7 { grid-column: 6; grid-row: 5; }
-.pamphlet-column-8 { grid-column: 8; grid-row: 5; }
+.pamphlet-page-footer {
+    grid-column: 2 / 5;
+    grid-row: 6;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 1mm;
+    overflow: visible;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    z-index: 5;
+}
+
+.pamphlet-page-header > .pamphlet-item {
+    width: 100%;
+}
+
+.pamphlet-page-footer > .pamphlet-item {
+    flex: 0 0 auto;
+    width: 100%;
+}
+
+.pamphlet-item {
+    overflow: visible;
+}
+
+.pamphlet-header-item {
+    max-width: 100%;
+    overflow: visible;
+    overflow-wrap: break-word;
+}
+
+.pamphlet-header-title {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.pamphlet-header-subtitle {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.pamphlet-header-author,
+.pamphlet-header-series,
+.pamphlet-header-series-chapter,
+.pamphlet-header-date {
+    font-size: 9px;
+    line-height: 1.2;
+    opacity: 0.85;
+}
+
+.pamphlet-page-footer .pamphlet-item {
+    font-size: 9px;
+    line-height: 1.25;
+}
+
+.pamphlet-page-footer .pamphlet-item h1 {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/*
+  Page 1 (rows 1–7):
+  - Left: 7 & 8 (header + gutter + body), footer under them
+  - Right: header above 1 & 2; 1 & 2 (body + gutter + footer)
+  Page 2 (row 9): columns 3,4,5,6
+*/
+.pamphlet-column-7 { grid-column: 2; grid-row: 2 / 5; }
+.pamphlet-column-8 { grid-column: 4; grid-row: 2 / 5; }
+.pamphlet-column-1 { grid-column: 6; grid-row: 4 / 7; }
+.pamphlet-column-2 { grid-column: 8; grid-row: 4 / 7; }
+
+.pamphlet-column-3 { grid-column: 2; grid-row: 9; }
+.pamphlet-column-4 { grid-column: 4; grid-row: 9; }
+.pamphlet-column-5 { grid-column: 6; grid-row: 9; }
+.pamphlet-column-6 { grid-column: 8; grid-row: 9; }
 
 p{
   /* border: solid 1px red; */
@@ -251,7 +472,11 @@ p{
     background: #fff;
   }
 
-  #file-toolbar {
+  #file-toolbar,
+  .app-sidebar,
+  .sidebar-backdrop,
+  .menu-toggle,
+  .toastify {
     display: none !important;
   }
 

@@ -1,3 +1,22 @@
+export type EditTrayMode = "full" | "header";
+
+export type PamphletTrayAction =
+    | { action: "edit-open"; container: HTMLElement }
+    | { action: "close"; container: HTMLElement }
+    | { action: "move-up"; container: HTMLElement }
+    | { action: "move-down"; container: HTMLElement }
+    | { action: "add-above"; container: HTMLElement }
+    | { action: "add-below"; container: HTMLElement }
+    | { action: "bold"; container: HTMLElement; start: number; end: number }
+    | { action: "undo"; container: HTMLElement }
+    | { action: "delete"; container: HTMLElement };
+
+export interface CreateElementOptions {
+    trayMode?: EditTrayMode;
+    headerField?: string;
+    extraClasses?: string[];
+}
+
 const ICONS = {
     check: "/check_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg",
     arrowUp: "/arrow_upward_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg",
@@ -23,16 +42,34 @@ function setButtonIcon(button: HTMLButtonElement, src: string, label: string): v
     button.appendChild(img);
 }
 
+function dispatchTrayAction(target: HTMLElement, detail: PamphletTrayAction): void {
+    target.dispatchEvent(
+        new CustomEvent<PamphletTrayAction>("pamphlet-tray-action", {
+            bubbles: true,
+            detail,
+        }),
+    );
+}
+
 export default function CreateElement(
     tag: string,
     id: string,
     classes: string[],
     attributes: { key: string, value: string }[],
     content: string,
+    options: CreateElementOptions = {},
 ): HTMLElement {
+    const trayMode = options.trayMode ?? "full";
     const elContainer: HTMLElement = document.createElement("div");
-    
+
     elContainer.className = "pamphlet-item";
+    if (options.extraClasses?.length) {
+        elContainer.classList.add(...options.extraClasses);
+    }
+    elContainer.setAttribute("data-tray-mode", trayMode);
+    if (options.headerField) {
+        elContainer.setAttribute("data-header-field", options.headerField);
+    }
     elContainer.setAttribute(
         "data-item-type",
         tag.toLowerCase() === "h1" ? "heading_1" : "paragraph",
@@ -41,167 +78,159 @@ export default function CreateElement(
         "data-style-indexes",
         JSON.stringify([[0, 0], [0, 0], [0, 0]]),
     );
-    
+
     const el: HTMLElement = document.createElement(tag);
-    
     elContainer.appendChild(el);
 
     if (id) {
         el.id = id;
-        elContainer.id = `${id}_container`; 
+        elContainer.id = `${id}_container`;
     }
 
-    classes.forEach(c => el.classList.add(c));
-    attributes.forEach(att => el.setAttribute(att.key, att.value));
-
+    classes.forEach((c) => el.classList.add(c));
+    attributes.forEach((att) => el.setAttribute(att.key, att.value));
     el.textContent = content;
 
     el.addEventListener("click", () => {
-        editTray(elContainer, el, id);
+        editTray(elContainer, el, id, trayMode);
     });
 
     return elContainer;
 }
 
-function editTray(elContainer: HTMLElement, el: HTMLElement, id: string) {
+function editTray(
+    elContainer: HTMLElement,
+    el: HTMLElement,
+    id: string,
+    trayMode: EditTrayMode,
+) {
     if (elContainer.querySelector(".element_edit_tray")) return;
+
+    dispatchTrayAction(elContainer, { action: "edit-open", container: elContainer });
 
     const initialContent = el.textContent || "";
 
-    const editTray = document.createElement("div");
-    if (id) editTray.id = `${id}_edit_tray`;
-    editTray.className = "element_edit_tray";
-    
-    editTray.addEventListener("click", (trayEvent: PointerEvent) => {
+    const tray = document.createElement("div");
+    if (id) tray.id = `${id}_edit_tray`;
+    tray.className = "element_edit_tray";
+
+    tray.addEventListener("click", (trayEvent: PointerEvent) => {
         trayEvent.stopPropagation();
     });
 
     const editTrayButtonsTray = document.createElement("div");
     editTrayButtonsTray.className = "element_edit_tray_buttons_container";
 
-    const enboldButton = document.createElement("button");
-    enboldButton.type = "button";
-    enboldButton.classList.add("edit_tray_icon_button", "edit_tray_text_button");
-    enboldButton.textContent = "B";
-    enboldButton.setAttribute("aria-label", "Bold");
-    enboldButton.title = "Bold";
-    
-    // --- Move Up Button ---
-    const upButton = document.createElement("button");
-    setButtonIcon(upButton, ICONS.arrowUp, "Move up");
-    upButton.addEventListener("click", () => {
-        const prevSibling = elContainer.previousElementSibling;
-        if (prevSibling) {
-            editTray.remove(); // 1. Close current tray
-            prevSibling.before(elContainer); // 2. Move
-            elContainer.dispatchEvent(new CustomEvent("item-edited", { bubbles: true })); // 3. Reflow columns
-            el.click(); // 4. Re-open tray automatically
-        }
-    });
-    
-    // --- Move Down Button ---
-    const downButton = document.createElement("button");
-    setButtonIcon(downButton, ICONS.arrowDown, "Move down");
-    downButton.addEventListener("click", () => {
-        const nextSibling = elContainer.nextElementSibling;
-        if (nextSibling) {
-            editTray.remove(); 
-            nextSibling.after(elContainer);
-            elContainer.dispatchEvent(new CustomEvent("item-edited", { bubbles: true })); 
-            el.click(); 
-        }
-    });
-
-    // --- Create NEW Element Before (+UP) ---
-    const addUpButton = document.createElement("button");
-    setButtonIcon(addUpButton, ICONS.addRowAbove, "Add above");
-    addUpButton.addEventListener("click", () => {
-        editTray.remove(); // Close current tray
-        
-        const currentTag = el.tagName.toLowerCase();
-        const currentClasses = Array.from(el.classList);
-        const newElementContainer = CreateElement(currentTag, "", currentClasses, [], "New text");
-        
-        elContainer.before(newElementContainer);
-        elContainer.dispatchEvent(new CustomEvent("item-edited", { bubbles: true }));
-        
-        // Find the inner element of the newly created container and click it
-        const newInnerElement = newElementContainer.firstElementChild as HTMLElement;
-        if (newInnerElement) newInnerElement.click();
-    });
-
-    // --- Create NEW Element After (+DOWN) ---
-    const addDownButton = document.createElement("button");
-    setButtonIcon(addDownButton, ICONS.addRowBelow, "Add below");
-    addDownButton.addEventListener("click", () => {
-        editTray.remove(); // Close current tray
-        
-        const currentTag = el.tagName.toLowerCase();
-        const currentClasses = Array.from(el.classList);
-        const newElementContainer = CreateElement(currentTag, "", currentClasses, [], "New text");
-        
-        elContainer.after(newElementContainer);
-        elContainer.dispatchEvent(new CustomEvent("item-edited", { bubbles: true }));
-        
-        // Find the inner element of the newly created container and click it
-        const newInnerElement = newElementContainer.firstElementChild as HTMLElement;
-        if (newInnerElement) newInnerElement.click();
-    });
-
     const editTrayTextArea = document.createElement("textarea");
-    editTrayTextArea.value = initialContent; 
+    editTrayTextArea.value = initialContent;
     editTrayTextArea.classList.add("edit_tray_text_area");
-    
+
     editTrayTextArea.addEventListener("input", (e: Event) => {
         const target = e.target as HTMLTextAreaElement;
-        el.textContent = target.value; 
+        el.textContent = target.value;
     });
 
-    // --- Undo Button ---
-    const undoButton = document.createElement("button");
-    setButtonIcon(undoButton, ICONS.undo, "Undo");
-    undoButton.addEventListener("click", () => {
-        editTrayTextArea.value = initialContent;
-        el.textContent = initialContent;
-    });
+    const saveAndClose = () => {
+        dispatchTrayAction(elContainer, { action: "close", container: elContainer });
+    };
 
-    const deleteButton = document.createElement("button");
-    setButtonIcon(deleteButton, ICONS.delete, "Delete");
-    deleteButton.classList.add("edit_tray_delete_button");
-    deleteButton.addEventListener("click", () => {
-        const parent = elContainer.parentElement;
-        elContainer.remove(); 
-        
-        if (parent) {
-            parent.dispatchEvent(new CustomEvent("item-edited", { bubbles: true }));
+    editTrayTextArea.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            saveAndClose();
+            return;
+        }
+        if (e.key === "Escape") {
+            e.preventDefault();
+            saveAndClose();
         }
     });
 
-    // --- Close Button ---
     const editTrayCloseButton = document.createElement("button");
     setButtonIcon(editTrayCloseButton, ICONS.check, "Save and close");
     editTrayCloseButton.classList.add("edit_tray_close_button");
     editTrayCloseButton.addEventListener("click", () => {
-        editTray.remove();
-        elContainer.dispatchEvent(new CustomEvent("item-edited", { bubbles: true }));
-        elContainer.dispatchEvent(new CustomEvent("pamphlet-save", { bubbles: true }));
+        saveAndClose();
+    });
+
+    const undoButton = document.createElement("button");
+    setButtonIcon(undoButton, ICONS.undo, "Undo");
+    undoButton.addEventListener("click", () => {
+        if (trayMode === "header") {
+            editTrayTextArea.value = initialContent;
+            el.textContent = initialContent;
+            return;
+        }
+        dispatchTrayAction(elContainer, { action: "undo", container: elContainer });
     });
 
     editTrayButtonsTray.appendChild(editTrayCloseButton);
-    editTrayButtonsTray.appendChild(upButton);
-    editTrayButtonsTray.appendChild(downButton);
-    editTrayButtonsTray.appendChild(addUpButton);
-    editTrayButtonsTray.appendChild(addDownButton);
-    editTrayButtonsTray.appendChild(enboldButton);
-    editTrayButtonsTray.appendChild(undoButton);
-    editTrayButtonsTray.appendChild(deleteButton);
 
-    editTray.appendChild(editTrayButtonsTray);
-    editTray.appendChild(editTrayTextArea);
+    if (trayMode === "full") {
+        const upButton = document.createElement("button");
+        setButtonIcon(upButton, ICONS.arrowUp, "Move up");
+        upButton.addEventListener("click", () => {
+            dispatchTrayAction(elContainer, { action: "move-up", container: elContainer });
+        });
 
-    elContainer.appendChild(editTray);
+        const downButton = document.createElement("button");
+        setButtonIcon(downButton, ICONS.arrowDown, "Move down");
+        downButton.addEventListener("click", () => {
+            dispatchTrayAction(elContainer, { action: "move-down", container: elContainer });
+        });
 
-    // Focus the text area and place the cursor at the end of the text
+        const addUpButton = document.createElement("button");
+        setButtonIcon(addUpButton, ICONS.addRowAbove, "Add above");
+        addUpButton.addEventListener("click", () => {
+            dispatchTrayAction(elContainer, { action: "add-above", container: elContainer });
+        });
+
+        const addDownButton = document.createElement("button");
+        setButtonIcon(addDownButton, ICONS.addRowBelow, "Add below");
+        addDownButton.addEventListener("click", () => {
+            dispatchTrayAction(elContainer, { action: "add-below", container: elContainer });
+        });
+
+        const enboldButton = document.createElement("button");
+        enboldButton.type = "button";
+        enboldButton.classList.add("edit_tray_icon_button", "edit_tray_text_button");
+        enboldButton.textContent = "B";
+        enboldButton.setAttribute("aria-label", "Bold");
+        enboldButton.title = "Bold";
+        enboldButton.addEventListener("click", () => {
+            dispatchTrayAction(elContainer, {
+                action: "bold",
+                container: elContainer,
+                start: editTrayTextArea.selectionStart,
+                end: editTrayTextArea.selectionEnd,
+            });
+        });
+
+        const deleteButton = document.createElement("button");
+        setButtonIcon(deleteButton, ICONS.delete, "Delete");
+        deleteButton.classList.add("edit_tray_delete_button");
+        deleteButton.addEventListener("click", () => {
+            dispatchTrayAction(elContainer, { action: "delete", container: elContainer });
+        });
+
+        editTrayButtonsTray.appendChild(upButton);
+        editTrayButtonsTray.appendChild(downButton);
+        editTrayButtonsTray.appendChild(addUpButton);
+        editTrayButtonsTray.appendChild(addDownButton);
+        editTrayButtonsTray.appendChild(enboldButton);
+        editTrayButtonsTray.appendChild(undoButton);
+        editTrayButtonsTray.appendChild(deleteButton);
+    } else {
+        editTrayButtonsTray.appendChild(undoButton);
+    }
+
+    tray.appendChild(editTrayButtonsTray);
+    tray.appendChild(editTrayTextArea);
+    elContainer.appendChild(tray);
+
     editTrayTextArea.focus();
-    editTrayTextArea.setSelectionRange(editTrayTextArea.value.length, editTrayTextArea.value.length);
+    editTrayTextArea.setSelectionRange(
+        editTrayTextArea.value.length,
+        editTrayTextArea.value.length,
+    );
 }

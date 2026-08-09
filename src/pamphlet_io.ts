@@ -1,26 +1,70 @@
 import CreateElement from "./create_element";
 import {
     COLUMN_KEYS,
+    FOOTER_COLUMN,
+    HEADER_COLUMN,
+    HEADER_FIELD_KEYS,
     DEFAULT_STYLE_INDEXES,
+    createStarterItem,
     itemTypeToTag,
     tagToItemType,
+    type HeaderFieldKey,
+    type LastEditedElement,
     type PamphletHeader,
     type PamphletItem,
     type PamphletStructure,
     type StyleIndexes,
 } from "./pamphlet_schema";
 
-const STYLE_INDEXES_ATTR = "data-style-indexes";
-const ITEM_TYPE_ATTR = "data-item-type";
+export const STYLE_INDEXES_ATTR = "data-style-indexes";
+export const ITEM_TYPE_ATTR = "data-item-type";
 
-function parseStyleIndexes(raw: string | null): StyleIndexes {
-    if (!raw) return DEFAULT_STYLE_INDEXES;
+const HEADER_FIELD_CLASSES: Record<HeaderFieldKey, string> = {
+    title: "pamphlet-header-title",
+    subtitle: "pamphlet-header-subtitle",
+    author: "pamphlet-header-author",
+    series: "pamphlet-header-series",
+    series_chapter: "pamphlet-header-series-chapter",
+    date: "pamphlet-header-date",
+};
+
+export function parseStyleIndexes(raw: string | null): StyleIndexes {
+    if (!raw) return structuredClone(DEFAULT_STYLE_INDEXES);
     try {
-        const parsed = JSON.parse(raw) as StyleIndexes;
-        return parsed;
+        return JSON.parse(raw) as StyleIndexes;
     } catch {
-        return DEFAULT_STYLE_INDEXES;
+        return structuredClone(DEFAULT_STYLE_INDEXES);
     }
+}
+
+export function applyStyledContent(
+    el: HTMLElement,
+    content: string,
+    styleIndexes: StyleIndexes,
+): void {
+    const [start, end] = styleIndexes[0];
+    el.replaceChildren();
+
+    if (
+        Number.isFinite(start) &&
+        Number.isFinite(end) &&
+        end > start &&
+        start >= 0 &&
+        end <= content.length
+    ) {
+        if (start > 0) {
+            el.appendChild(document.createTextNode(content.slice(0, start)));
+        }
+        const bold = document.createElement("b");
+        bold.textContent = content.slice(start, end);
+        el.appendChild(bold);
+        if (end < content.length) {
+            el.appendChild(document.createTextNode(content.slice(end)));
+        }
+        return;
+    }
+
+    el.textContent = content;
 }
 
 function applyItemMeta(container: HTMLElement, item: PamphletItem): void {
@@ -32,7 +76,46 @@ export function createItemElement(item: PamphletItem): HTMLElement {
     const tag = itemTypeToTag(item.type);
     const container = CreateElement(tag, "", [], [], item.content);
     applyItemMeta(container, item);
+    const inner = container.firstElementChild as HTMLElement;
+    applyStyledContent(inner, item.content, item.style_indexes);
     return container;
+}
+
+function createHeaderFieldElement(field: HeaderFieldKey, value: string): HTMLElement {
+    const container = CreateElement(
+        "p",
+        "",
+        [],
+        [],
+        value,
+        {
+            trayMode: "header",
+            headerField: field,
+            extraClasses: ["pamphlet-header-item", HEADER_FIELD_CLASSES[field]],
+        },
+    );
+    return container;
+}
+
+export function renderPageChrome(main: HTMLElement, data: PamphletStructure): void {
+    main.querySelector(":scope > .pamphlet-page-header")?.remove();
+    main.querySelector(":scope > .pamphlet-page-footer")?.remove();
+
+    const headerEl = document.createElement("header");
+    headerEl.className = "pamphlet-page-header";
+    HEADER_FIELD_KEYS.forEach((field) => {
+        headerEl.appendChild(createHeaderFieldElement(field, data.header[field] ?? ""));
+    });
+
+    const footerEl = document.createElement("footer");
+    footerEl.className = "pamphlet-page-footer dumb-column pamphlet-footer-column";
+    const footerItems = data.footer.items.length > 0 ? data.footer.items : [createStarterItem()];
+    for (const item of footerItems) {
+        footerEl.appendChild(createItemElement(item));
+    }
+
+    main.appendChild(headerEl);
+    main.appendChild(footerEl);
 }
 
 export function renderFromPamphlet(main: HTMLElement, data: PamphletStructure): void {
@@ -47,6 +130,8 @@ export function renderFromPamphlet(main: HTMLElement, data: PamphletStructure): 
             col.appendChild(createItemElement(item));
         }
     });
+
+    renderPageChrome(main, data);
 }
 
 function serializeItem(container: HTMLElement): PamphletItem {
@@ -64,24 +149,107 @@ function serializeItem(container: HTMLElement): PamphletItem {
     };
 }
 
-export function serializePamphlet(main: HTMLElement, header: PamphletHeader): PamphletStructure {
-    const columns = Array.from(main.querySelectorAll<HTMLElement>(":scope > .dumb-column"));
-    const pamphlet = {
-        type: "pamphlet_single_sheet" as const,
-        header: { ...header },
-        column_1: [] as PamphletItem[],
-        column_2: [] as PamphletItem[],
-        column_3: [] as PamphletItem[],
-        column_4: [] as PamphletItem[],
-        column_5: [] as PamphletItem[],
-        column_6: [] as PamphletItem[],
-        column_7: [] as PamphletItem[],
-        column_8: [] as PamphletItem[],
+export function serializeHeaderFromDom(main: HTMLElement): PamphletHeader {
+    const header: PamphletHeader = {
+        title: "",
+        subtitle: "",
+        author: "",
+        series: "",
+        series_chapter: "",
+        date: "",
     };
 
-    for (let i = 0; i < 8; i++) {
-        const key = COLUMN_KEYS[i];
-        const col = columns[i];
+    const items = main.querySelectorAll<HTMLElement>(
+        ":scope > .pamphlet-page-header > .pamphlet-item[data-header-field]",
+    );
+    items.forEach((item) => {
+        const field = item.getAttribute("data-header-field") as HeaderFieldKey | null;
+        if (!field || !(field in header)) return;
+        const inner = item.firstElementChild as HTMLElement | null;
+        header[field] = inner?.textContent ?? "";
+    });
+
+    return header;
+}
+
+export function serializeFooterFromDom(main: HTMLElement): PamphletItem[] {
+    const footer = main.querySelector<HTMLElement>(":scope > .pamphlet-page-footer");
+    if (!footer) return [];
+    return Array.from(footer.querySelectorAll<HTMLElement>(":scope > .pamphlet-item")).map(
+        serializeItem,
+    );
+}
+
+export function getItemLocation(container: HTMLElement): LastEditedElement | null {
+    const header = container.closest<HTMLElement>(".pamphlet-page-header");
+    if (header) {
+        const items = Array.from(
+            header.querySelectorAll<HTMLElement>(":scope > .pamphlet-item[data-header-field]"),
+        );
+        const index = items.indexOf(container);
+        if (index < 0) return null;
+        return { column: HEADER_COLUMN, index };
+    }
+
+    const footer = container.closest<HTMLElement>(".pamphlet-page-footer");
+    if (footer) {
+        const items = Array.from(footer.querySelectorAll<HTMLElement>(":scope > .pamphlet-item"));
+        const index = items.indexOf(container);
+        if (index < 0) return null;
+        return { column: FOOTER_COLUMN, index };
+    }
+
+    const columnEl = container.closest<HTMLElement>(".dumb-column");
+    if (!columnEl) return null;
+
+    const match = columnEl.className.match(/pamphlet-column-(\d+)/);
+    if (!match) return null;
+
+    const column = Number(match[1]);
+    const items = Array.from(columnEl.querySelectorAll<HTMLElement>(":scope > .pamphlet-item"));
+    const index = items.indexOf(container);
+    if (index < 0) return null;
+
+    return { column, index };
+}
+
+export function getFlatIndex(data: PamphletStructure, loc: LastEditedElement): number {
+    if (loc.column === HEADER_COLUMN || loc.column === FOOTER_COLUMN) {
+        return loc.index;
+    }
+    let flat = 0;
+    for (let c = 1; c < loc.column; c++) {
+        flat += data[COLUMN_KEYS[c - 1]].length;
+    }
+    return flat + loc.index;
+}
+
+export function countItems(data: PamphletStructure): number {
+    return COLUMN_KEYS.reduce((sum, key) => sum + data[key].length, 0);
+}
+
+export function serializePamphlet(
+    main: HTMLElement,
+    lastEdited: LastEditedElement,
+): PamphletStructure {
+    const pamphlet: PamphletStructure = {
+        type: "pamphlet_single_sheet",
+        header: serializeHeaderFromDom(main),
+        footer: { items: serializeFooterFromDom(main) },
+        last_edited_element: { ...lastEdited },
+        column_1: [],
+        column_2: [],
+        column_3: [],
+        column_4: [],
+        column_5: [],
+        column_6: [],
+        column_7: [],
+        column_8: [],
+    };
+
+    for (let i = 1; i <= 8; i++) {
+        const key = COLUMN_KEYS[i - 1];
+        const col = main.querySelector<HTMLElement>(`:scope > .pamphlet-column-${i}`);
         if (!col) {
             pamphlet[key] = [];
             continue;
@@ -90,13 +258,24 @@ export function serializePamphlet(main: HTMLElement, header: PamphletHeader): Pa
         pamphlet[key] = items.map(serializeItem);
     }
 
-    // Preserve content if reflow produced more than 8 columns
-    for (let i = 8; i < columns.length; i++) {
-        const extras = Array.from(
-            columns[i].querySelectorAll<HTMLElement>(":scope > .pamphlet-item"),
-        ).map(serializeItem);
-        pamphlet.column_8.push(...extras);
-    }
-
     return pamphlet;
+}
+
+export function syncItemContentFromTextarea(container: HTMLElement): void {
+    const tray = container.querySelector<HTMLTextAreaElement>(".edit_tray_text_area");
+    const inner = container.firstElementChild as HTMLElement | null;
+    if (!tray || !inner) return;
+
+    const content = tray.value;
+    const styles = parseStyleIndexes(container.getAttribute(STYLE_INDEXES_ATTR));
+    const [start, end] = styles[0];
+    if (end > content.length || start > content.length || end < start) {
+        styles[0] = [0, 0];
+        container.setAttribute(STYLE_INDEXES_ATTR, JSON.stringify(styles));
+    }
+    applyStyledContent(inner, content, styles);
+}
+
+export function isHeaderItem(container: HTMLElement): boolean {
+    return container.hasAttribute("data-header-field");
 }

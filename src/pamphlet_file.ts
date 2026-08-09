@@ -8,10 +8,11 @@ import {
 let fileHandle: FileSystemFileHandle | null = null;
 let fileName = "";
 
-const JSON_PICKER_TYPES: FilePickerAcceptType[] = [
+/** Custom pamphlet container: JSON on disk with a `.epam` extension. */
+const EPAM_PICKER_TYPES: FilePickerAcceptType[] = [
     {
-        description: "Pamphlet JSON",
-        accept: { "application/json": [".json"] },
+        description: "Pamphlet EPAM",
+        accept: { "application/x-epam": [".epam"] },
     },
 ];
 
@@ -34,7 +35,7 @@ export function hasOpenFile(): boolean {
 function suggestFileName(meta: CreatePamphletMeta): string {
     const series = meta.series.trim().replace(/[^\w.-]+/g, "_") || "pamphlet";
     const chapter = meta.series_chapter.trim().replace(/[^\w.-]+/g, "_") || "1";
-    return `${series}_ch${chapter}.json`;
+    return `${series}_ch${chapter}.epam`;
 }
 
 async function readHandle(handle: FileSystemFileHandle): Promise<PamphletStructure> {
@@ -44,7 +45,7 @@ async function readHandle(handle: FileSystemFileHandle): Promise<PamphletStructu
     try {
         parsed = JSON.parse(text);
     } catch {
-        throw new Error("Invalid JSON: file could not be parsed");
+        throw new Error("Invalid EPAM file: contents could not be parsed as JSON");
     }
     assertPamphletStructure(parsed);
     return parsed;
@@ -64,7 +65,8 @@ export async function openPamphletFile(): Promise<PamphletStructure> {
     }
 
     const [handle] = await window.showOpenFilePicker({
-        types: JSON_PICKER_TYPES,
+        types: EPAM_PICKER_TYPES,
+        excludeAcceptAllOption: true,
         multiple: false,
     });
 
@@ -84,16 +86,18 @@ export async function createPamphletFile(meta: CreatePamphletMeta): Promise<Pamp
     const title = meta.title.trim();
     const series = meta.series.trim();
     const series_chapter = meta.series_chapter.trim();
+    const author = meta.author.trim();
 
-    if (!title || !series || !series_chapter) {
-        throw new Error("Title, series, and series chapter are required");
+    if (!title || !series || !series_chapter || !author) {
+        throw new Error("Title, series, chapter, and author are required");
     }
 
-    const data = createEmptyPamphlet({ title, series, series_chapter });
+    const data = createEmptyPamphlet({ title, series, series_chapter, author });
 
     const handle = await window.showSaveFilePicker({
-        suggestedName: suggestFileName({ title, series, series_chapter }),
-        types: JSON_PICKER_TYPES,
+        suggestedName: suggestFileName({ title, series, series_chapter, author }),
+        types: EPAM_PICKER_TYPES,
+        excludeAcceptAllOption: true,
     });
 
     await writeHandle(handle, data);
