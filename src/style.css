@@ -380,16 +380,16 @@ main {
 .pamphlet-add-item-button {
     flex: 0 0 auto;
     align-self: flex-start;
-    width: 6mm;
-    height: 6mm;
+    width: 9mm;
+    height: 9mm;
     margin-top: 0.5mm;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid #2e7d32;
-    background: #fff;
-    color: #c62828;
-    font-size: 4mm;
+    border: 1px solid #1565c0;
+    background: #1976d2;
+    color: #fff;
+    font-size: 6mm;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
@@ -397,7 +397,7 @@ main {
 }
 
 .pamphlet-add-item-button:hover {
-    background: #f3faf3;
+    background: #1565c0;
 }
 
 .pamphlet-header-item {
