@@ -3,9 +3,11 @@ import {
     FOOTER_COLUMN,
     HEADER_COLUMN,
     columnKey,
-    createStarterItem,
+    createItemByType,
+    createParagraphItem,
     type LastEditedElement,
     type PamphletItem,
+    type PamphletItemType,
     type PamphletStructure,
     type StyleIndexes,
 } from "./pamphlet_schema";
@@ -117,6 +119,16 @@ export function insertItem(
     return { column: loc.column, index: insertAt };
 }
 
+export function appendItem(
+    data: PamphletStructure,
+    column: number,
+    item: PamphletItem,
+): LastEditedElement {
+    const items = getRegionItems(data, column);
+    items.push(item);
+    return { column, index: items.length - 1 };
+}
+
 export function deleteItem(
     data: PamphletStructure,
     loc: FlatRef,
@@ -127,16 +139,11 @@ export function deleteItem(
         data.footer.items.splice(loc.index, 1);
         if (prev) return { focus: prev };
         if (next) return { focus: { column: FOOTER_COLUMN, index: loc.index } };
-        // Empty footer: keep a starter so user can keep editing
-        if (data.footer.items.length === 0) {
-            data.footer.items.push(createStarterItem());
-            return { focus: { column: FOOTER_COLUMN, index: 0 } };
-        }
         return { focus: { column: FOOTER_COLUMN, index: 0 } };
     }
 
     if (totalItemCount(data) <= 1) {
-        data.column_1 = [createStarterItem()];
+        data.column_1 = [];
         data.column_2 = [];
         data.column_3 = [];
         data.column_4 = [];
@@ -171,6 +178,7 @@ export function applyBoldRange(
 ): void {
     const items = getRegionItems(data, loc.column);
     const item = items[loc.index];
+    if (item.type === "image") return;
     const a = Math.max(0, Math.min(start, end));
     const b = Math.min(item.content.length, Math.max(start, end));
     const styles = structuredClone(item.style_indexes) as StyleIndexes;
@@ -186,16 +194,30 @@ export function updateItemContent(
     const items = getRegionItems(data, loc.column);
     const item = items[loc.index];
     item.content = content;
+    if (item.type === "image") return;
     const [start, end] = item.style_indexes[0];
     if (end > content.length || start > content.length || end < start) {
         item.style_indexes[0] = [0, 0];
     }
 }
 
-export function newSiblingItem(template: PamphletItem): PamphletItem {
-    return {
-        type: template.type,
-        content: "Escribe aquí",
-        style_indexes: [[0, 0], [0, 0], [0, 0]],
-    };
+export function updateItemHeightMm(
+    data: PamphletStructure,
+    loc: FlatRef,
+    heightMm: number,
+): void {
+    const items = getRegionItems(data, loc.column);
+    const item = items[loc.index];
+    if (item.type !== "image") return;
+    item.height_mm = heightMm;
 }
+
+export function newSiblingItem(template: PamphletItem): PamphletItem {
+    return createItemByType(template.type);
+}
+
+export function createTypedItem(type: PamphletItemType): PamphletItem {
+    return createItemByType(type);
+}
+
+export { createParagraphItem };

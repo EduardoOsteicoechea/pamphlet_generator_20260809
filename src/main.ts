@@ -3,16 +3,18 @@ import Toastify from "toastify-js";
 import "toastify-js/src/toastify.css";
 import type { PamphletTrayAction } from "./create_element";
 import {
+    appendItem,
     applyBoldRange,
     clonePamphlet,
+    createTypedItem,
     deleteItem,
     getRegionItems,
     insertItem,
     moveItemDown,
     moveItemUp,
-    newSiblingItem,
     resolveLocation,
     updateItemContent,
+    updateItemHeightMm,
 } from "./pamphlet_doc";
 import {
     createPamphletFile,
@@ -29,21 +31,28 @@ import {
     getFlatIndex,
     getItemLocation,
     isHeaderItem,
+    isImageItem,
     renderFromPamphlet,
     renderPageChrome,
     serializePamphlet,
+    syncImageItemFromDom,
     syncItemContentFromTextarea,
 } from "./pamphlet_io";
 import {
     FOOTER_COLUMN,
     HEADER_COLUMN,
     HEADER_FIELD_KEYS,
-    createStarterItem,
+    createParagraphItem,
     type HeaderFieldKey,
     type LastEditedElement,
     type PamphletHeader,
+    type PamphletItemType,
     type PamphletStructure,
 } from "./pamphlet_schema";
+
+type PendingInsert =
+    | { mode: "end"; column: number }
+    | { mode: "relative"; column: number; index: number; where: "above" | "below" };
 
 function requireElement<T extends HTMLElement>(selector: string): T {
     const el = document.querySelector<T>(selector);
@@ -65,6 +74,8 @@ const modalTitle = requireElement<HTMLInputElement>("#modal-title");
 const modalSeries = requireElement<HTMLInputElement>("#modal-series");
 const modalChapter = requireElement<HTMLInputElement>("#modal-chapter");
 const modalAuthor = requireElement<HTMLInputElement>("#modal-author");
+const itemTypeModal = requireElement<HTMLDialogElement>("#item-type-modal");
+const itemTypeCancelBtn = requireElement<HTMLButtonElement>("#item-type-cancel");
 
 function updatePrintAvailability(): void {
     printBtn.disabled = !hasOpenFile() || !currentDoc;
@@ -88,16 +99,16 @@ function toggleSidebar(): void {
 const usLetterHeightInMillimeters = 215.9;
 const pageMarginMm = 10;
 const pageHeaderHeightMm = 14;
-const pageFooterHeightMm = 15;
+const pageFooterHeightMm = 37.5; // 15mm × 2.5
 const colGutterNarrowMm = 4;
 /** Page 2 band / full page-1 chrome band: letter − 2×margin */
 const columnContentHeightMm = usLetterHeightInMillimeters - pageMarginMm * 2;
 /** Cols 1–2: under page header → discount header + gutter beneath it */
 const page1RightColHeightMm =
-    columnContentHeightMm - pageHeaderHeightMm - colGutterNarrowMm; // 171.9
+    columnContentHeightMm - pageHeaderHeightMm - colGutterNarrowMm; // 177.9
 /** Cols 7–8: above page footer → discount gutter above footer + footer */
 const page1LeftColHeightMm =
-    columnContentHeightMm - colGutterNarrowMm - pageFooterHeightMm; // 176.9
+    columnContentHeightMm - colGutterNarrowMm - pageFooterHeightMm; // 154.4
 
 function maxHeightForColumn(columnIndex: number): number {
     if (columnIndex === 1 || columnIndex === 2) return page1RightColHeightMm;
@@ -112,6 +123,7 @@ let currentHeader: PamphletHeader | null = null;
 let currentDoc: PamphletStructure | null = null;
 let undoSnapshot: PamphletStructure | null = null;
 let suppressEditOpenSave = false;
+let pendingInsert: PendingInsert | null = null;
 
 function convertPixelsToMillimeters(px: number): number {
     return px * (25.4 / 96);
@@ -163,7 +175,7 @@ function measureBlockMm(item: HTMLElement, spacer: HTMLElement | null): number {
 
 /** Probe how much vertical space a new starter item (+ spacer) and the + button need. */
 function measureAddControlsMm(host: HTMLElement): { newItemMm: number; buttonMm: number } {
-    const probeItem = createItemElement(createStarterItem());
+    const probeItem = createItemElement(createParagraphItem());
     const probeSpacer = createItemSpacer();
     const probeBtn = createAddItemButton(0);
     host.appendChild(probeItem);
@@ -220,7 +232,12 @@ function placeFooterAddButton(footer: HTMLElement): void {
     });
 
     const { newItemMm, buttonMm } = measureAddControlsMm(footer);
-    if (filledMm + newItemMm + buttonMm <= pageFooterHeightMm) {
+    // Empty footer: only the + needs to fit; otherwise require room for item + button
+    const fits =
+        filledMm === 0
+            ? buttonMm <= pageFooterHeightMm
+            : filledMm + newItemMm + buttonMm <= pageFooterHeightMm;
+    if (fits) {
         footer.appendChild(createAddItemButton(FOOTER_COLUMN));
     }
 }
@@ -454,6 +471,9 @@ function activateEditAt(data: PamphletStructure, loc: LastEditedElement): void {
         return;
     }
 
+    const region = getRegionItems(data, loc.column);
+    if (region.length === 0) return;
+
     const flat = getFlatIndex(data, loc);
     const items = Array.from(
         main.querySelectorAll<HTMLElement>(
@@ -510,14 +530,13 @@ function syncContentIntoDoc(
     container: HTMLElement,
     data: PamphletStructure,
 ): LastEditedElement | null {
-    syncItemContentFromTextarea(container);
     const loc = locationFromContainer(container);
     if (!loc) return null;
 
-    const tray = container.querySelector<HTMLTextAreaElement>(".edit_tray_text_area");
-    const content = tray?.value ?? "";
-
     if (loc.column === HEADER_COLUMN) {
+        syncItemContentFromTextarea(container);
+        const tray = container.querySelector<HTMLTextAreaElement>(".edit_tray_text_area");
+        const content = tray?.value ?? "";
         const field = container.getAttribute("data-header-field") as HeaderFieldKey | null;
         if (field && HEADER_FIELD_KEYS.includes(field)) {
             data.header[field] = content;
@@ -527,8 +546,64 @@ function syncContentIntoDoc(
 
     const resolved = resolveLocation(data, loc);
     if (!resolved) return null;
+
+    if (isImageItem(container)) {
+        const image = syncImageItemFromDom(container);
+        if (!image) return null;
+        updateItemContent(data, resolved, image.content);
+        updateItemHeightMm(data, resolved, image.heightMm);
+        return resolved;
+    }
+
+    syncItemContentFromTextarea(container);
+    const tray = container.querySelector<HTMLTextAreaElement>(".edit_tray_text_area");
+    const content = tray?.value ?? "";
     updateItemContent(data, resolved, content);
     return resolved;
+}
+
+function openItemTypeModal(insert: PendingInsert): void {
+    pendingInsert = insert;
+    if (!itemTypeModal.open) {
+        itemTypeModal.showModal();
+    }
+}
+
+function closeItemTypeModal(): void {
+    pendingInsert = null;
+    if (itemTypeModal.open) {
+        itemTypeModal.close();
+    }
+}
+
+async function confirmItemType(type: PamphletItemType): Promise<void> {
+    if (!currentDoc || !hasOpenFile() || !pendingInsert) {
+        closeItemTypeModal();
+        return;
+    }
+
+    const insert = pendingInsert;
+    pendingInsert = null;
+    if (itemTypeModal.open) itemTypeModal.close();
+
+    const base = serializePamphlet(main, currentDoc.last_edited_element);
+    const item = createTypedItem(type);
+    let focus: LastEditedElement;
+
+    if (insert.mode === "end") {
+        focus = appendItem(base, insert.column, item);
+    } else {
+        focus = insertItem(
+            base,
+            { column: insert.column, index: insert.index },
+            item,
+            insert.where,
+        );
+    }
+
+    base.last_edited_element = focus;
+    pushUndoSnapshot();
+    await commitDocument(base, true);
 }
 
 async function handleAddItemButton(column: number): Promise<void> {
@@ -537,13 +612,7 @@ async function handleAddItemButton(column: number): Promise<void> {
         return;
     }
     if (column !== FOOTER_COLUMN && (column < 1 || column > 8)) return;
-
-    const base = serializePamphlet(main, currentDoc.last_edited_element);
-    const items = getRegionItems(base, column);
-    items.push(createStarterItem());
-    base.last_edited_element = { column, index: items.length - 1 };
-    pushUndoSnapshot();
-    await commitDocument(base, true);
+    openItemTypeModal({ mode: "end", column });
 }
 
 async function handleTrayAction(detail: PamphletTrayAction): Promise<void> {
@@ -624,28 +693,32 @@ async function handleTrayAction(detail: PamphletTrayAction): Promise<void> {
             break;
         }
         case "add-above": {
-            const items = getRegionItems(base, loc.column);
-            const template = items[loc.index] ?? {
-                type: "paragraph" as const,
-                content: "Escribe aquí",
-                style_indexes: [[0, 0], [0, 0], [0, 0]] as [[number, number], [number, number], [number, number]],
-            };
-            base.last_edited_element = insertItem(base, loc, newSiblingItem(template), "above");
-            nextDoc = base;
-            break;
+            // Keep current tray/DOM; insert after type is chosen (avoids reflow shifting indexes)
+            base.last_edited_element = loc;
+            currentDoc = base;
+            currentHeader = { ...base.header };
+            openItemTypeModal({
+                mode: "relative",
+                column: loc.column,
+                index: loc.index,
+                where: "above",
+            });
+            return;
         }
         case "add-below": {
-            const items = getRegionItems(base, loc.column);
-            const template = items[loc.index] ?? {
-                type: "paragraph" as const,
-                content: "Escribe aquí",
-                style_indexes: [[0, 0], [0, 0], [0, 0]] as [[number, number], [number, number], [number, number]],
-            };
-            base.last_edited_element = insertItem(base, loc, newSiblingItem(template), "below");
-            nextDoc = base;
-            break;
+            base.last_edited_element = loc;
+            currentDoc = base;
+            currentHeader = { ...base.header };
+            openItemTypeModal({
+                mode: "relative",
+                column: loc.column,
+                index: loc.index,
+                where: "below",
+            });
+            return;
         }
         case "bold": {
+            if (isImageItem(detail.container)) return;
             applyBoldRange(base, loc, detail.start, detail.end);
             base.last_edited_element = loc;
             nextDoc = base;
@@ -753,12 +826,28 @@ createForm.addEventListener("submit", async (event) => {
         });
         closeCreateModal();
         loadPamphlet(data);
-        activateEditAt(data, { column: HEADER_COLUMN, index: 0 });
+        openItemTypeModal({ mode: "end", column: 1 });
     } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         const message = err instanceof Error ? err.message : String(err);
         setError(`Create failed: ${message}`);
     }
+});
+
+itemTypeModal.querySelectorAll<HTMLButtonElement>("[data-item-type]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        const type = btn.dataset.itemType as PamphletItemType | undefined;
+        if (type !== "paragraph" && type !== "heading_1" && type !== "image") return;
+        void confirmItemType(type);
+    });
+});
+
+itemTypeCancelBtn.addEventListener("click", () => {
+    closeItemTypeModal();
+});
+
+itemTypeModal.addEventListener("cancel", () => {
+    pendingInsert = null;
 });
 
 printBtn.addEventListener("click", () => {

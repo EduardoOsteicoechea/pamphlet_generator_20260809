@@ -1,6 +1,7 @@
 import {
     assertPamphletStructure,
     createEmptyPamphlet,
+    normalizePamphletData,
     type CreatePamphletMeta,
     type PamphletStructure,
 } from "./pamphlet_schema";
@@ -47,8 +48,9 @@ async function readHandle(handle: FileSystemFileHandle): Promise<PamphletStructu
     } catch {
         throw new Error("Invalid EPAM file: contents could not be parsed as JSON");
     }
-    assertPamphletStructure(parsed);
-    return parsed;
+    const normalized = normalizePamphletData(parsed);
+    assertPamphletStructure(normalized);
+    return normalized;
 }
 
 async function writeHandle(handle: FileSystemFileHandle, data: PamphletStructure): Promise<void> {

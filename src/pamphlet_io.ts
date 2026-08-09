@@ -1,23 +1,26 @@
-import CreateElement from "./create_element";
+import CreateElement, { openItemEditTray } from "./create_element";
 import {
     COLUMN_KEYS,
     FOOTER_COLUMN,
     HEADER_COLUMN,
     HEADER_FIELD_KEYS,
+    DEFAULT_IMAGE_HEIGHT_MM,
     DEFAULT_STYLE_INDEXES,
-    createStarterItem,
+    clampImageHeightMm,
     itemTypeToTag,
     tagToItemType,
     type HeaderFieldKey,
     type LastEditedElement,
     type PamphletHeader,
     type PamphletItem,
+    type PamphletItemType,
     type PamphletStructure,
     type StyleIndexes,
 } from "./pamphlet_schema";
 
 export const STYLE_INDEXES_ATTR = "data-style-indexes";
 export const ITEM_TYPE_ATTR = "data-item-type";
+export const HEIGHT_MM_ATTR = "data-height-mm";
 
 const HEADER_FIELD_CLASSES: Record<HeaderFieldKey, string> = {
     title: "pamphlet-header-title",
@@ -78,11 +81,47 @@ export function applyStyledContent(
 function applyItemMeta(container: HTMLElement, item: PamphletItem): void {
     container.setAttribute(ITEM_TYPE_ATTR, item.type);
     container.setAttribute(STYLE_INDEXES_ATTR, JSON.stringify(item.style_indexes));
+    container.setAttribute(HEIGHT_MM_ATTR, String(item.height_mm ?? 0));
+}
+
+function createImageItemElement(item: PamphletItem): HTMLElement {
+    const container = document.createElement("div");
+    container.className = "pamphlet-item";
+    container.setAttribute("data-tray-mode", "full");
+    applyItemMeta(container, item);
+
+    const heightMm = clampImageHeightMm(item.height_mm || DEFAULT_IMAGE_HEIGHT_MM);
+    container.setAttribute(HEIGHT_MM_ATTR, String(heightMm));
+
+    const frame = document.createElement("div");
+    frame.className = "pamphlet-image-frame";
+    frame.style.height = `${heightMm}mm`;
+
+    const img = document.createElement("img");
+    img.className = "pamphlet-image";
+    img.alt = "";
+    if (item.content) {
+        img.src = item.content;
+    }
+    frame.appendChild(img);
+    container.appendChild(frame);
+
+    frame.addEventListener("click", () => {
+        openItemEditTray(container);
+    });
+
+    return container;
 }
 
 export function createItemElement(item: PamphletItem): HTMLElement {
+    if (item.type === "image") {
+        return createImageItemElement(item);
+    }
+
     const tag = itemTypeToTag(item.type);
-    const container = CreateElement(tag, "", [], [], item.content);
+    const container = CreateElement(tag, "", [], [], item.content, {
+        itemType: item.type,
+    });
     applyItemMeta(container, item);
     const inner = container.firstElementChild as HTMLElement;
     applyStyledContent(inner, item.content, item.style_indexes);
@@ -169,8 +208,7 @@ export function renderPageChrome(main: HTMLElement, data: PamphletStructure): vo
 
     const footerEl = document.createElement("footer");
     footerEl.className = "pamphlet-page-footer dumb-column pamphlet-footer-column";
-    const footerItems = data.footer.items.length > 0 ? data.footer.items : [createStarterItem()];
-    for (const item of footerItems) {
+    for (const item of data.footer.items) {
         appendItemWithSpacer(footerEl, createItemElement(item));
     }
 
@@ -194,18 +232,35 @@ export function renderFromPamphlet(main: HTMLElement, data: PamphletStructure): 
     renderPageChrome(main, data);
 }
 
-function serializeItem(container: HTMLElement): PamphletItem {
-    const inner = container.firstElementChild as HTMLElement | null;
-    const tag = inner?.tagName ?? "P";
+function parseItemType(container: HTMLElement, fallbackTag: string): PamphletItemType {
     const typeAttr = container.getAttribute(ITEM_TYPE_ATTR);
-    const type = typeAttr === "heading_1" || typeAttr === "paragraph"
-        ? typeAttr
-        : tagToItemType(tag);
+    if (typeAttr === "heading_1" || typeAttr === "paragraph" || typeAttr === "image") {
+        return typeAttr;
+    }
+    return tagToItemType(fallbackTag);
+}
 
+function serializeItem(container: HTMLElement): PamphletItem {
+    const type = parseItemType(container, container.firstElementChild?.tagName ?? "P");
+    const heightRaw = Number(container.getAttribute(HEIGHT_MM_ATTR) ?? 0);
+    const height_mm = type === "image" ? clampImageHeightMm(heightRaw || DEFAULT_IMAGE_HEIGHT_MM) : 0;
+
+    if (type === "image") {
+        const img = container.querySelector<HTMLImageElement>(":scope > .pamphlet-image-frame > img");
+        return {
+            type,
+            content: img?.getAttribute("src") ?? "",
+            style_indexes: parseStyleIndexes(container.getAttribute(STYLE_INDEXES_ATTR)),
+            height_mm,
+        };
+    }
+
+    const inner = container.firstElementChild as HTMLElement | null;
     return {
         type,
         content: inner?.textContent ?? "",
         style_indexes: parseStyleIndexes(container.getAttribute(STYLE_INDEXES_ATTR)),
+        height_mm: 0,
     };
 }
 
@@ -321,6 +376,8 @@ export function serializePamphlet(
 }
 
 export function syncItemContentFromTextarea(container: HTMLElement): void {
+    if (container.getAttribute(ITEM_TYPE_ATTR) === "image") return;
+
     const tray = container.querySelector<HTMLTextAreaElement>(".edit_tray_text_area");
     const inner = container.firstElementChild as HTMLElement | null;
     if (!tray || !inner) return;
@@ -335,6 +392,24 @@ export function syncItemContentFromTextarea(container: HTMLElement): void {
     applyStyledContent(inner, content, styles);
 }
 
+export function syncImageItemFromDom(
+    container: HTMLElement,
+): { content: string; heightMm: number } | null {
+    if (container.getAttribute(ITEM_TYPE_ATTR) !== "image") return null;
+    const img = container.querySelector<HTMLImageElement>(":scope > .pamphlet-image-frame > img");
+    const heightMm = clampImageHeightMm(
+        Number(container.getAttribute(HEIGHT_MM_ATTR) || DEFAULT_IMAGE_HEIGHT_MM),
+    );
+    return {
+        content: img?.getAttribute("src") ?? "",
+        heightMm,
+    };
+}
+
 export function isHeaderItem(container: HTMLElement): boolean {
     return container.hasAttribute("data-header-field");
+}
+
+export function isImageItem(container: HTMLElement): boolean {
+    return container.getAttribute(ITEM_TYPE_ATTR) === "image";
 }

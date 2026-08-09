@@ -51,6 +51,21 @@
     </form>
   </dialog>
 
+  <dialog id="item-type-modal" class="create-modal item-type-modal">
+    <div class="create-modal-form">
+      <h2>Tipo de elemento</h2>
+      <p class="create-modal-hint">Elige qué quieres insertar.</p>
+      <div class="item-type-options">
+        <button type="button" data-item-type="paragraph">Párrafo</button>
+        <button type="button" data-item-type="heading_1">Heading</button>
+        <button type="button" data-item-type="image">Imagen</button>
+      </div>
+      <div class="create-modal-actions">
+        <button type="button" id="item-type-cancel">Cancelar</button>
+      </div>
+    </div>
+  </dialog>
+
   <main></main>
   <script type="module" src="/src/main.ts"></script>
 </body>

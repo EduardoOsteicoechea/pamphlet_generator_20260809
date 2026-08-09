@@ -1,11 +1,13 @@
 export type StyleIndexes = [[number, number], [number, number], [number, number]];
 
-export type PamphletItemType = "paragraph" | "heading_1";
+export type PamphletItemType = "paragraph" | "heading_1" | "image";
 
 export interface PamphletItem {
     type: PamphletItemType;
     content: string;
     style_indexes: StyleIndexes;
+    /** Frame height in mm for images; 0 for text items. */
+    height_mm: number;
 }
 
 export interface PamphletHeader {
@@ -65,6 +67,9 @@ export type PamphletStructure = {
 } & Record<ColumnKey, PamphletItem[]>;
 
 export const DEFAULT_STYLE_INDEXES: StyleIndexes = [[0, 0], [0, 0], [0, 0]];
+export const DEFAULT_IMAGE_HEIGHT_MM = 30;
+export const MIN_IMAGE_HEIGHT_MM = 10;
+export const IMAGE_HEIGHT_STEP_MM = 2;
 
 const ROOT_KEYS = ["type", "header", "footer", "last_edited_element", ...COLUMN_KEYS] as const;
 const HEADER_KEYS = [
@@ -77,8 +82,8 @@ const HEADER_KEYS = [
 ] as const;
 const FOOTER_KEYS = ["items"] as const;
 const LAST_EDITED_KEYS = ["column", "index"] as const;
-const ITEM_KEYS = ["type", "content", "style_indexes"] as const;
-const ITEM_TYPES = new Set<string>(["paragraph", "heading_1"]);
+const ITEM_KEYS = ["type", "content", "style_indexes", "height_mm"] as const;
+const ITEM_TYPES = new Set<string>(["paragraph", "heading_1", "image"]);
 
 function assertExactKeys(obj: object, expected: readonly string[], label: string): void {
     const keys = Object.keys(obj).sort();
@@ -127,10 +132,16 @@ function assertPamphletItem(value: unknown, label: string): asserts value is Pam
     const item = value as Record<string, unknown>;
     assertString(item.type, `${label}.type`);
     if (!ITEM_TYPES.has(item.type)) {
-        throw new Error(`${label}.type must be "paragraph" or "heading_1"`);
+        throw new Error(`${label}.type must be "paragraph", "heading_1", or "image"`);
     }
     assertString(item.content, `${label}.content`);
     assertStyleIndexes(item.style_indexes, `${label}.style_indexes`);
+    if (typeof item.height_mm !== "number" || !Number.isFinite(item.height_mm) || item.height_mm < 0) {
+        throw new Error(`${label}.height_mm must be a non-negative number`);
+    }
+    if (item.type === "image" && item.height_mm < MIN_IMAGE_HEIGHT_MM) {
+        throw new Error(`${label}.height_mm must be >= ${MIN_IMAGE_HEIGHT_MM} for images`);
+    }
 }
 
 function assertLastEditedElement(
@@ -147,6 +158,42 @@ function assertLastEditedElement(
     if (loc.column < 0 || loc.column > 9) {
         throw new Error(`${label}.column must be between 0 and 9`);
     }
+}
+
+/** Upgrade legacy items missing height_mm before strict validation. */
+export function normalizePamphletData(data: unknown): unknown {
+    if (typeof data !== "object" || data === null || Array.isArray(data)) return data;
+    const root = data as Record<string, unknown>;
+
+    const normalizeItem = (item: unknown): unknown => {
+        if (typeof item !== "object" || item === null || Array.isArray(item)) return item;
+        const rec = item as Record<string, unknown>;
+        if (typeof rec.height_mm === "number" && Number.isFinite(rec.height_mm)) {
+            return rec;
+        }
+        const type = rec.type;
+        return {
+            ...rec,
+            height_mm: type === "image" ? DEFAULT_IMAGE_HEIGHT_MM : 0,
+        };
+    };
+
+    const normalizeList = (list: unknown): unknown => {
+        if (!Array.isArray(list)) return list;
+        return list.map(normalizeItem);
+    };
+
+    const footer = root.footer;
+    if (typeof footer === "object" && footer !== null && !Array.isArray(footer)) {
+        const f = footer as Record<string, unknown>;
+        root.footer = { ...f, items: normalizeList(f.items) };
+    }
+
+    for (const col of COLUMN_KEYS) {
+        root[col] = normalizeList(root[col]);
+    }
+
+    return root;
 }
 
 export function assertPamphletStructure(data: unknown): asserts data is PamphletStructure {
@@ -202,12 +249,45 @@ export interface CreatePamphletMeta {
     author: string;
 }
 
-export function createStarterItem(): PamphletItem {
+export function createParagraphItem(content = "Escribe aquí"): PamphletItem {
     return {
         type: "paragraph",
-        content: "Escribe aquí",
-        style_indexes: [[0, 0], [0, 0], [0, 0]],
+        content,
+        style_indexes: structuredClone(DEFAULT_STYLE_INDEXES),
+        height_mm: 0,
     };
+}
+
+export function createHeadingItem(content = "Escribe aquí"): PamphletItem {
+    return {
+        type: "heading_1",
+        content,
+        style_indexes: structuredClone(DEFAULT_STYLE_INDEXES),
+        height_mm: 0,
+    };
+}
+
+export function createImageItem(
+    content = "",
+    heightMm = DEFAULT_IMAGE_HEIGHT_MM,
+): PamphletItem {
+    return {
+        type: "image",
+        content,
+        style_indexes: structuredClone(DEFAULT_STYLE_INDEXES),
+        height_mm: Math.max(MIN_IMAGE_HEIGHT_MM, heightMm),
+    };
+}
+
+export function createItemByType(type: PamphletItemType): PamphletItem {
+    if (type === "heading_1") return createHeadingItem();
+    if (type === "image") return createImageItem();
+    return createParagraphItem();
+}
+
+/** @deprecated Prefer createParagraphItem / createItemByType */
+export function createStarterItem(): PamphletItem {
+    return createParagraphItem();
 }
 
 export function createEmptyPamphlet(meta: CreatePamphletMeta): PamphletStructure {
@@ -221,9 +301,9 @@ export function createEmptyPamphlet(meta: CreatePamphletMeta): PamphletStructure
             series_chapter: meta.series_chapter,
             date: new Date().toISOString().slice(0, 10),
         },
-        footer: { items: [createStarterItem()] },
+        footer: { items: [] },
         last_edited_element: { column: 1, index: 0 },
-        column_1: [createStarterItem()],
+        column_1: [],
         column_2: [],
         column_3: [],
         column_4: [],
@@ -235,13 +315,22 @@ export function createEmptyPamphlet(meta: CreatePamphletMeta): PamphletStructure
 }
 
 export function itemTypeToTag(type: PamphletItemType): string {
-    return type === "heading_1" ? "h1" : "p";
+    if (type === "heading_1") return "h1";
+    if (type === "image") return "div";
+    return "p";
 }
 
 export function tagToItemType(tag: string): PamphletItemType {
-    return tag.toLowerCase() === "h1" ? "heading_1" : "paragraph";
+    const t = tag.toLowerCase();
+    if (t === "h1") return "heading_1";
+    return "paragraph";
 }
 
 export function columnKey(column: number): ColumnKey {
     return COLUMN_KEYS[column - 1];
+}
+
+export function clampImageHeightMm(heightMm: number): number {
+    if (!Number.isFinite(heightMm)) return DEFAULT_IMAGE_HEIGHT_MM;
+    return Math.max(MIN_IMAGE_HEIGHT_MM, Math.round(heightMm));
 }

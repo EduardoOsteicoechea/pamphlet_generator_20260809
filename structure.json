@@ -13,12 +13,14 @@
             {
                 "type": "heading_1",
                 "content": "Hello, world!",
-                "style_indexes": [[0, 5], [0, 0], [0, 0]]
+                "style_indexes": [[0, 5], [0, 0], [0, 0]],
+                "height_mm": 0
             },
             {
                 "type": "paragraph",
                 "content": "Hello, world!",
-                "style_indexes": [[0, 5], [0, 0], [0, 0]]
+                "style_indexes": [[0, 5], [0, 0], [0, 0]],
+                "height_mm": 0
             }
         ]
     },
@@ -30,61 +32,76 @@
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 5], [0, 0], [0, 0]]
+            "style_indexes": [[0, 5], [0, 0], [0, 0]],
+            "height_mm": 0
         },
         {
             "type": "heading_1",
             "content": "Hello, world!",
-            "style_indexes": [[0, 5], [0, 0], [0, 0]]
+            "style_indexes": [[0, 5], [0, 0], [0, 0]],
+            "height_mm": 0
+        },
+        {
+            "type": "image",
+            "content": "",
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 30
         }
     ],
     "column_2": [
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 0], [0, 0], [0, 0]]
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 0
         }
     ],
     "column_3": [
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 0], [0, 0], [0, 0]]
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 0
         }
     ],
     "column_4": [
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 0], [0, 0], [0, 0]]
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 0
         }
     ],
     "column_5": [
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 0], [0, 0], [0, 0]]
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 0
         }
     ],
     "column_6": [
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 0], [0, 0], [0, 0]]
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 0
         }
     ],
     "column_7": [
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 0], [0, 0], [0, 0]]
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 0
         }
     ],
     "column_8": [
         {
             "type": "paragraph",
             "content": "Hello, world!",
-            "style_indexes": [[0, 0], [0, 0], [0, 0]]
+            "style_indexes": [[0, 0], [0, 0], [0, 0]],
+            "height_mm": 0
         }
     ]
 }
