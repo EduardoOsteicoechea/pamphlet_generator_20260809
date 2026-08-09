@@ -1,19 +1,25 @@
 /* ./style.css */
 
 #file-toolbar {
-  position: absolute;
-  top: 0px;
-  right: 12px;
+  /* Fixed to viewport; inverse-scaled so browser zoom does not change chrome size */
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: auto;
+  width: calc(100% * var(--ui-zoom, 1));
+  height: 55px;
   z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
   margin: 0;
   padding: 0;
   pointer-events: none;
+  transform: scale(var(--ui-inv-zoom, 1));
+  transform-origin: top right;
 }
 
 .menu-toggle {
+  position: absolute;
+  top: 5px;
+  right: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -269,7 +275,6 @@ main {
     display: flex;
     flex-direction: column;
     overflow: visible;
-    border: var(--b1);
 }
 
 /* Page 1: left = cols 7–8 + footer; right = header + cols 1–2 */
@@ -302,6 +307,23 @@ main {
 
 .pamphlet-page-header > .pamphlet-item {
     width: 100%;
+    flex: 0 0 auto;
+}
+
+.pamphlet-header-meta-bar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    gap: 2mm;
+    width: 100%;
+    min-width: 0;
+}
+
+.pamphlet-header-meta-bar > .pamphlet-item {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
 }
 
 .pamphlet-page-footer > .pamphlet-item {
@@ -327,23 +349,23 @@ main {
     overflow-wrap: break-word;
 }
 
-.pamphlet-header-title {
-    font-size: 14px;
+.pamphlet-header-title p {
+    font-size: 5mm;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.15;
 }
 
-.pamphlet-header-subtitle {
-    font-size: 11px;
+.pamphlet-header-subtitle p {
+    font-size: 2.4mm;
     font-weight: 500;
     line-height: 1.2;
 }
 
-.pamphlet-header-author,
-.pamphlet-header-series,
-.pamphlet-header-series-chapter,
-.pamphlet-header-date {
-    font-size: 9px;
+.pamphlet-header-author p,
+.pamphlet-header-series p,
+.pamphlet-header-series-chapter p,
+.pamphlet-header-date p {
+    font-size: 2.2mm;
     line-height: 1.2;
     opacity: 0.85;
 }
@@ -381,7 +403,7 @@ p{
     /* Safari/older browser fallback */
     word-break: break-word;
   overflow: hidden;
-  font-size: 2.5mm;
+  font-size: 3mm;
 }
 
 .element_edit_tray{

@@ -118,9 +118,15 @@ export function renderPageChrome(main: HTMLElement, data: PamphletStructure): vo
 
     const headerEl = document.createElement("header");
     headerEl.className = "pamphlet-page-header";
-    HEADER_FIELD_KEYS.forEach((field) => {
-        headerEl.appendChild(createHeaderFieldElement(field, data.header[field] ?? ""));
-    });
+    headerEl.appendChild(createHeaderFieldElement("title", data.header.title ?? ""));
+
+    const metaBar = document.createElement("div");
+    metaBar.className = "pamphlet-header-meta-bar";
+    for (const field of HEADER_FIELD_KEYS) {
+        if (field === "title") continue;
+        metaBar.appendChild(createHeaderFieldElement(field, data.header[field] ?? ""));
+    }
+    headerEl.appendChild(metaBar);
 
     const footerEl = document.createElement("footer");
     footerEl.className = "pamphlet-page-footer dumb-column pamphlet-footer-column";
@@ -175,7 +181,7 @@ export function serializeHeaderFromDom(main: HTMLElement): PamphletHeader {
     };
 
     const items = main.querySelectorAll<HTMLElement>(
-        ":scope > .pamphlet-page-header > .pamphlet-item[data-header-field]",
+        ":scope > .pamphlet-page-header .pamphlet-item[data-header-field]",
     );
     items.forEach((item) => {
         const field = item.getAttribute("data-header-field") as HeaderFieldKey | null;
@@ -199,7 +205,7 @@ export function getItemLocation(container: HTMLElement): LastEditedElement | nul
     const header = container.closest<HTMLElement>(".pamphlet-page-header");
     if (header) {
         const items = Array.from(
-            header.querySelectorAll<HTMLElement>(":scope > .pamphlet-item[data-header-field]"),
+            header.querySelectorAll<HTMLElement>(".pamphlet-item[data-header-field]"),
         );
         const index = items.indexOf(container);
         if (index < 0) return null;

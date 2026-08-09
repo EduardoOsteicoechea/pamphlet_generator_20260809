@@ -84,7 +84,26 @@ function toggleSidebar(): void {
 
 const usLetterHeightInMillimeters = 215.9;
 const pageMarginMm = 10;
+const pageHeaderHeightMm = 20;
+const pageFooterHeightMm = 15;
+const colGutterNarrowMm = 4;
+/** Page 2 band / full page-1 chrome band: letter − 2×margin */
 const columnContentHeightMm = usLetterHeightInMillimeters - pageMarginMm * 2;
+/** Cols 1–2: under page header → discount header + gutter beneath it */
+const page1RightColHeightMm =
+    columnContentHeightMm - pageHeaderHeightMm - colGutterNarrowMm; // 171.9
+/** Cols 7–8: above page footer → discount gutter above footer + footer */
+const page1LeftColHeightMm =
+    columnContentHeightMm - colGutterNarrowMm - pageFooterHeightMm; // 176.9
+
+function maxHeightForColumn(columnIndex: number): number {
+    if (columnIndex === 1 || columnIndex === 2) return page1RightColHeightMm;
+    if (columnIndex === 7 || columnIndex === 8) return page1LeftColHeightMm;
+    return columnContentHeightMm; // 3–6 (page 2)
+}
+
+/** Captured at load; used to keep app chrome size stable across browser zoom. */
+const uiChromeBaselineDpr = window.devicePixelRatio || 1;
 
 let currentHeader: PamphletHeader | null = null;
 let currentDoc: PamphletStructure | null = null;
@@ -93,6 +112,16 @@ let suppressEditOpenSave = false;
 
 function convertPixelsToMillimeters(px: number): number {
     return px * (25.4 / 96);
+}
+
+/** Keep #file-toolbar at a constant visual size when the user zooms the page. */
+function syncFixedChromeScale(): void {
+    const dpr = window.devicePixelRatio || 1;
+    const zoom = dpr / uiChromeBaselineDpr;
+    const inv = zoom > 0 ? 1 / zoom : 1;
+    const root = document.documentElement;
+    root.style.setProperty("--ui-zoom", String(zoom));
+    root.style.setProperty("--ui-inv-zoom", String(inv));
 }
 
 type ToastKind = "info" | "success" | "error";
@@ -121,7 +150,7 @@ function setStatus(message: string, kind: ToastKind = "info"): void {
     showToast(message, kind);
 }
 
-function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
+function reflowAndReport(container: HTMLElement) {
     const items = Array.from(
         container.querySelectorAll<HTMLElement>(
             ":scope > .dumb-column[class*='pamphlet-column-'] > .pamphlet-item",
@@ -130,12 +159,33 @@ function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
     container.innerHTML = "";
 
     const report = {
-        config: { maxColumnHeightMm: maxColHeightMm, columnWidth: "60.35mm" },
+        config: {
+            page2ColHeightMm: columnContentHeightMm,
+            page1RightColHeightMm, // cols 1–2: −header −gutter
+            page1LeftColHeightMm, // cols 7–8: −footer gutter −footer
+            columnWidth: "60.35mm",
+            pxToMmFactor: 25.4 / 96,
+        },
         columns: [] as {
             columnIndex: number;
             itemCount: number;
             filledHeightMm: number;
+            maxHeightMm: number;
             remainingSpaceMm: number;
+        }[],
+        itemTrace: [] as {
+            globalIndex: number;
+            column: number;
+            itemPx: number;
+            itemMm: number;
+            spacerPx: number;
+            spacerMm: number;
+            blockMm: number;
+            filledBeforeMm: number;
+            filledAfterMm: number;
+            maxColHeightMm: number;
+            overflowed: boolean;
+            preview: string;
         }[],
         totalItemsProcessed: items.length,
     };
@@ -150,12 +200,23 @@ function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
         return col;
     }
 
+    function pushColumnSummary(index: number, itemCount: number, filledMm: number): void {
+        const maxHeightMm = maxHeightForColumn(index);
+        report.columns.push({
+            columnIndex: index,
+            itemCount,
+            filledHeightMm: Number(filledMm.toFixed(2)),
+            maxHeightMm,
+            remainingSpaceMm: Number((maxHeightMm - filledMm).toFixed(2)),
+        });
+    }
+
     let currentColumnDiv = createAndAppendColumn();
     let currentColumnFilledMm = 0;
     let currentColumnItemsCount = 0;
     let columnIndex = 1;
 
-    items.forEach((item) => {
+    items.forEach((item, globalIndex) => {
         // Drop a stale spacer if this item was still paired in the previous layout
         const staleSpacer = item.nextElementSibling;
         if (staleSpacer?.classList.contains("pamphlet-item-spacer")) {
@@ -166,17 +227,19 @@ function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
         currentColumnDiv.appendChild(item);
         currentColumnDiv.appendChild(spacer);
 
-        const itemMm = convertPixelsToMillimeters(item.getBoundingClientRect().height);
-        const spacerMm = convertPixelsToMillimeters(spacer.getBoundingClientRect().height);
+        const itemPx = item.getBoundingClientRect().height;
+        const spacerPx = spacer.getBoundingClientRect().height;
+        const itemMm = convertPixelsToMillimeters(itemPx);
+        const spacerMm = convertPixelsToMillimeters(spacerPx);
         const blockMm = itemMm + spacerMm;
+        const filledBeforeMm = currentColumnFilledMm;
+        const currentMaxMm = maxHeightForColumn(columnIndex);
+        const wouldOverflow =
+            currentColumnFilledMm + blockMm > currentMaxMm && currentColumnItemsCount > 0;
+        const preview = (item.textContent ?? "").trim().slice(0, 48);
 
-        if (currentColumnFilledMm + blockMm > maxColHeightMm && currentColumnItemsCount > 0) {
-            report.columns.push({
-                columnIndex,
-                itemCount: currentColumnItemsCount,
-                filledHeightMm: Number(currentColumnFilledMm.toFixed(2)),
-                remainingSpaceMm: Number((maxColHeightMm - currentColumnFilledMm).toFixed(2)),
-            });
+        if (wouldOverflow) {
+            pushColumnSummary(columnIndex, currentColumnItemsCount, currentColumnFilledMm);
 
             columnIndex++;
             currentColumnDiv = createAndAppendColumn();
@@ -189,15 +252,34 @@ function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
             currentColumnFilledMm += blockMm;
             currentColumnItemsCount++;
         }
+
+        const appliedMaxMm = maxHeightForColumn(columnIndex);
+        const entry = {
+            globalIndex,
+            column: columnIndex,
+            itemPx: Number(itemPx.toFixed(2)),
+            itemMm: Number(itemMm.toFixed(3)),
+            spacerPx: Number(spacerPx.toFixed(2)),
+            spacerMm: Number(spacerMm.toFixed(3)),
+            blockMm: Number(blockMm.toFixed(3)),
+            filledBeforeMm: Number(filledBeforeMm.toFixed(3)),
+            filledAfterMm: Number(currentColumnFilledMm.toFixed(3)),
+            maxColHeightMm: appliedMaxMm,
+            overflowed: wouldOverflow,
+            preview,
+        };
+        report.itemTrace.push(entry);
+
+        if (columnIndex === 1 || wouldOverflow) {
+            console.log(`[reflow] col ${columnIndex} item#${globalIndex}`, {
+                ...entry,
+                sumCheck: `${filledBeforeMm.toFixed(2)} + ${blockMm.toFixed(2)} = ${(filledBeforeMm + blockMm).toFixed(2)} vs max ${wouldOverflow ? currentMaxMm : appliedMaxMm}`,
+            });
+        }
     });
 
     if (currentColumnItemsCount > 0) {
-        report.columns.push({
-            columnIndex,
-            itemCount: currentColumnItemsCount,
-            filledHeightMm: Number(currentColumnFilledMm.toFixed(2)),
-            remainingSpaceMm: Number((maxColHeightMm - currentColumnFilledMm).toFixed(2)),
-        });
+        pushColumnSummary(columnIndex, currentColumnItemsCount, currentColumnFilledMm);
     }
 
     while (
@@ -212,6 +294,47 @@ function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
 
     console.log("--- Auto-Reflow Layout Report ---");
     console.log(report);
+
+    // After chrome/grid resolve, compare accumulated fill vs real column box (esp. col 1)
+    requestAnimationFrame(() => {
+        const cols = Array.from(
+            container.querySelectorAll<HTMLElement>(
+                ":scope > .dumb-column[class*='pamphlet-column-']",
+            ),
+        );
+
+        console.log("[reflow] per-column max heights", {
+            cols1_2: page1RightColHeightMm,
+            cols3_6: columnContentHeightMm,
+            cols7_8: page1LeftColHeightMm,
+        });
+
+        for (const col of cols) {
+            const match = /pamphlet-column-(\d+)/.exec(col.className);
+            const index = match ? Number(match[1]) : -1;
+            const boxPx = col.getBoundingClientRect().height;
+            const boxMm = convertPixelsToMillimeters(boxPx);
+            const summary = report.columns.find((c) => c.columnIndex === index);
+            const reflowMaxMm = maxHeightForColumn(index);
+            const row = {
+                columnIndex: index,
+                domHeightPx: Number(boxPx.toFixed(2)),
+                domHeightMm: Number(boxMm.toFixed(2)),
+                filledHeightMm: summary?.filledHeightMm ?? 0,
+                itemCount: summary?.itemCount ?? 0,
+                reflowMaxMm,
+                overflowVsDomMm: Number(((summary?.filledHeightMm ?? 0) - boxMm).toFixed(2)),
+                overflowVsReflowMaxMm: Number(
+                    ((summary?.filledHeightMm ?? 0) - reflowMaxMm).toFixed(2),
+                ),
+            };
+            if (index === 1) {
+                console.warn("[reflow] column 1 height check", row);
+            } else {
+                console.log("[reflow] column height check", row);
+            }
+        }
+    });
 }
 
 function clickInner(target: HTMLElement | undefined): void {
@@ -229,7 +352,7 @@ function activateEditAt(data: PamphletStructure, loc: LastEditedElement): void {
     if (loc.column === HEADER_COLUMN) {
         const items = Array.from(
             main.querySelectorAll<HTMLElement>(
-                ":scope > .pamphlet-page-header > .pamphlet-item[data-header-field]",
+                ":scope > .pamphlet-page-header .pamphlet-item[data-header-field]",
             ),
         );
         clickInner(items[Math.min(Math.max(loc.index, 0), items.length - 1)]);
@@ -259,7 +382,7 @@ function renderDocument(data: PamphletStructure, openEdit: boolean): void {
     currentDoc = data;
     currentHeader = { ...data.header };
     renderFromPamphlet(main, data);
-    reflowAndReport(main, columnContentHeightMm);
+    reflowAndReport(main);
     if (openEdit) {
         activateEditAt(data, data.last_edited_element);
     }
@@ -534,6 +657,10 @@ printBtn.addEventListener("click", () => {
 });
 
 updatePrintAvailability();
+syncFixedChromeScale();
+window.addEventListener("resize", syncFixedChromeScale);
+window.visualViewport?.addEventListener("resize", syncFixedChromeScale);
+window.visualViewport?.addEventListener("scroll", syncFixedChromeScale);
 
 if (!isFileSystemAccessSupported()) {
     setError("File System Access API is not supported. Use Chrome or Edge.");
