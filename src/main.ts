@@ -23,6 +23,7 @@ import {
     savePamphlet,
 } from "./pamphlet_file";
 import {
+    createItemSpacer,
     getFlatIndex,
     getItemLocation,
     isHeaderItem,
@@ -155,12 +156,21 @@ function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
     let columnIndex = 1;
 
     items.forEach((item) => {
+        // Drop a stale spacer if this item was still paired in the previous layout
+        const staleSpacer = item.nextElementSibling;
+        if (staleSpacer?.classList.contains("pamphlet-item-spacer")) {
+            staleSpacer.remove();
+        }
+
+        const spacer = createItemSpacer();
         currentColumnDiv.appendChild(item);
+        currentColumnDiv.appendChild(spacer);
 
-        const heightPx = item.getBoundingClientRect().height;
-        const heightMm = convertPixelsToMillimeters(heightPx);
+        const itemMm = convertPixelsToMillimeters(item.getBoundingClientRect().height);
+        const spacerMm = convertPixelsToMillimeters(spacer.getBoundingClientRect().height);
+        const blockMm = itemMm + spacerMm;
 
-        if (currentColumnFilledMm + heightMm > maxColHeightMm && currentColumnItemsCount > 0) {
+        if (currentColumnFilledMm + blockMm > maxColHeightMm && currentColumnItemsCount > 0) {
             report.columns.push({
                 columnIndex,
                 itemCount: currentColumnItemsCount,
@@ -171,11 +181,12 @@ function reflowAndReport(container: HTMLElement, maxColHeightMm: number) {
             columnIndex++;
             currentColumnDiv = createAndAppendColumn();
             currentColumnDiv.appendChild(item);
+            currentColumnDiv.appendChild(spacer);
 
-            currentColumnFilledMm = heightMm;
+            currentColumnFilledMm = blockMm;
             currentColumnItemsCount = 1;
         } else {
-            currentColumnFilledMm += heightMm;
+            currentColumnFilledMm += blockMm;
             currentColumnItemsCount++;
         }
     });

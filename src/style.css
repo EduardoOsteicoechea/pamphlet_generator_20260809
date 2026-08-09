@@ -211,6 +211,8 @@
   --column-content-height: 195.9mm;
   /* Content column width: (279.4 − 10−4−10−4−10) / 4 = 60.35mm */
   --column-content-width: 60.35mm;
+  /* Non-editable gap under each column/footer item; counted in reflow height */
+  --item-gap-height: 2mm;
   --b1: solid 1px rgb(231, 231, 231);
 }
 
@@ -311,6 +313,14 @@ main {
     overflow: visible;
 }
 
+.pamphlet-item-spacer {
+    flex: 0 0 auto;
+    width: 100%;
+    height: var(--item-gap-height);
+    pointer-events: none;
+    user-select: none;
+}
+
 .pamphlet-header-item {
     max-width: 100%;
     overflow: visible;
@@ -371,6 +381,7 @@ p{
     /* Safari/older browser fallback */
     word-break: break-word;
   overflow: hidden;
+  font-size: 2.5mm;
 }
 
 .element_edit_tray{

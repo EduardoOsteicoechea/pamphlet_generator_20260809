@@ -81,6 +81,21 @@ export function createItemElement(item: PamphletItem): HTMLElement {
     return container;
 }
 
+/** Non-editable gap under each item; height counts toward column fill. */
+export function createItemSpacer(): HTMLElement {
+    const spacer = document.createElement("div");
+    spacer.className = "pamphlet-item-spacer";
+    spacer.setAttribute("aria-hidden", "true");
+    return spacer;
+}
+
+export function appendItemWithSpacer(parent: HTMLElement, item: HTMLElement): HTMLElement {
+    parent.appendChild(item);
+    const spacer = createItemSpacer();
+    parent.appendChild(spacer);
+    return spacer;
+}
+
 function createHeaderFieldElement(field: HeaderFieldKey, value: string): HTMLElement {
     const container = CreateElement(
         "p",
@@ -111,7 +126,7 @@ export function renderPageChrome(main: HTMLElement, data: PamphletStructure): vo
     footerEl.className = "pamphlet-page-footer dumb-column pamphlet-footer-column";
     const footerItems = data.footer.items.length > 0 ? data.footer.items : [createStarterItem()];
     for (const item of footerItems) {
-        footerEl.appendChild(createItemElement(item));
+        appendItemWithSpacer(footerEl, createItemElement(item));
     }
 
     main.appendChild(headerEl);
@@ -127,7 +142,7 @@ export function renderFromPamphlet(main: HTMLElement, data: PamphletStructure): 
         main.appendChild(col);
 
         for (const item of data[key]) {
-            col.appendChild(createItemElement(item));
+            appendItemWithSpacer(col, createItemElement(item));
         }
     });
 
